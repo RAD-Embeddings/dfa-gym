@@ -1,5 +1,7 @@
 from dfa_gym.dfa_env import *
 from dfa_gym.dfa_wrapper import *
+from dfa_gym.dfa_bisim_env import *
+from dfa_gym.dfa_bisim2_env import *
 
 from dfa_samplers import RADSampler
 from gymnasium.envs.registration import register
@@ -13,4 +15,16 @@ register(
 register(
     id='DFAEnv-v1',
     entry_point='dfa_gym.dfa_env:DFAEnv'
+)
+
+
+register(
+    id='DFABisimEnv-v1',
+    entry_point='dfa_gym.dfa_bisim_env:DFABisimEnv'
+)
+
+
+register(
+    id='DFABisim2Env-v1',
+    entry_point='dfa_gym.dfa_bisim2_env:DFABisim2Env'
 )
