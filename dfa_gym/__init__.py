@@ -25,6 +25,6 @@ register(
 
 
 register(
-    id='DFABisim2Env-v1',
+    id='DFABisimEnv-v2',
     entry_point='dfa_gym.dfa_bisim2_env:DFABisim2Env'
 )

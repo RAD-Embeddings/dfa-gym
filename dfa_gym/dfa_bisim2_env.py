@@ -41,7 +41,7 @@ class DFABisim2Env(gym.Env):
         reward1 = DFABisim2Env.dfa2rew(self.dfa_pair[1])
         reward = abs(reward0 - reward1)
         self.t += 1
-        done = (reward0 != 0 or reward1 != 0) or self.t > self.timeout
+        done = (reward0 != 0 or reward1 != 0 or self.dfa_pair[0].find_word() is None or self.dfa_pair[1].find_word() is None) or self.t > self.timeout
         obs = np.concatenate([DFABisim2Env.dfa2obs(self.dfa_pair[0], size_bound=self.size_bound), DFABisim2Env.dfa2obs(self.dfa_pair[1], size_bound=self.size_bound)])
         return obs, reward, done, False, {}
 
@@ -60,7 +60,7 @@ class DFABisim2Env(gym.Env):
         if dfa._label(dfa.start):
             reward = 1
         elif dfa.find_word() is None:
-            reward = -1
+            reward = 0
         return reward
 
     @staticmethod

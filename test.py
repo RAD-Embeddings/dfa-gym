@@ -25,7 +25,7 @@ if __name__ == "__main__":
         done = terminated or truncated
     wrapped_env.close()
     # Test DFAEnv
-    dfa_env = gym.make("DFABisim2Env-v1")
+    dfa_env = gym.make("DFABisimEnv-v2")
     obs, info = dfa_env.reset()
     for _ in range(1000):
         action = dfa_env.action_space.sample()  # Random action
