@@ -1,6 +1,6 @@
 [project]
 name = "dfa-gym"
-version = "0.1.12"
+version = "0.1.39"
 description = "Gymnasium environment for solving DFAs and wrapping other environments with DFA goals"
 readme = "README.md"
 requires-python = ">=3.12"
