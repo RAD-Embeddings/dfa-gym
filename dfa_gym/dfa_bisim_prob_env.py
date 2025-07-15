@@ -3,6 +3,7 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from dfa_samplers import DFASampler, RADSampler
+from scipy.special import log_softmax
 
 from typing import Any
 
@@ -31,8 +32,8 @@ class DFABisimProbEnv(gym.Env):
         super().__init__()
         self.sampler = sampler if sampler is not None else RADSampler()
         self.size_bound = self.sampler.get_size_bound()
-        # self.action_space = spaces.Box(low=-1, high=1, shape=(self.sampler.n_tokens,), dtype=np.float32)
-        self.action_space = spaces.Discrete(self.sampler.n_tokens)
+        self.action_space = spaces.Box(low=-10, high=10, shape=(self.sampler.n_tokens,), dtype=np.float32)
+        # self.action_space = spaces.Discrete(self.sampler.n_tokens)
         self.observation_space = spaces.Dict({"dfa_left": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
                                               "dfa_left_state_belief": spaces.Box(low=0.0, high=1.0, shape=(self.sampler.n_tokens,), dtype=np.float32),
                                               "dfa_right": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
@@ -70,13 +71,16 @@ class DFABisimProbEnv(gym.Env):
         # print(action.sum(), softmax(action).sum())
         # input()
         # action = softmax(action * 100)
+
+        action = np.exp(log_softmax(action))
+
         self.dfa_left_state_belief = DFABisimProbEnv.get_next_state_belief(self.dfa_left, self.dfa_left_state_belief, action)
         self.dfa_right_state_belief = DFABisimProbEnv.get_next_state_belief(self.dfa_right, self.dfa_right_state_belief, action)
         reward_left = DFABisimProbEnv.dfa2rew(self.dfa_left, self.dfa_left_state_belief, self.t, action)
         reward_right = DFABisimProbEnv.dfa2rew(self.dfa_right, self.dfa_right_state_belief, self.t, action)
         reward = reward_left - reward_right
         self.t += 1
-        done = (abs(reward_left) > self.success_reward or abs(reward_right) > self.success_reward) or self.t > self.timeout
+        done = (reward_left != 0 or reward_right != 0) or self.t > self.timeout
         return self._get_obs(), reward, done, False, {}
 
     def _get_obs(self):
@@ -99,14 +103,14 @@ class DFABisimProbEnv(gym.Env):
         return np.matmul(state_belief, prob_transition_mat)
 
     @staticmethod
-    def dfa2rew(dfa: DFA, state_belief, t, action):
-        reward = 0
+    def dfa2rew(dfa: DFA, state_belief, t, action, success_prob=0.9):
         for s in dfa.states():
-            if dfa._label(s):
-                reward += state_belief[s]
-            elif sum(dfa._transition(s, a) != s for a in dfa.inputs) == 0: # No outgoing edges, so it is a rejecting sink
-                reward -= state_belief[s]
-        return reward
+            if state_belief[s] >= success_prob:
+                if dfa._label(s):
+                    return 1
+                elif sum(dfa._transition(s, a) != s for a in dfa.inputs) == 0: # No outgoing edges, so it is a rejecting sink
+                    return -1
+        return 0
 
     @staticmethod
     def dfa2obs(dfa: DFA, size_bound: int) -> np.ndarray:
