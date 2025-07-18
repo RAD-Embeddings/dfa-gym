@@ -2,6 +2,7 @@ from dfa_gym.dfa_env import *
 from dfa_gym.dfa_wrapper import *
 from dfa_gym.dfa_bisim_env import *
 from dfa_gym.dfa_bisim_prob_env import *
+from dfa_gym.pettingzoo_wrapper import *
 
 from dfa_samplers import RADSampler
 from gymnasium.envs.registration import register
