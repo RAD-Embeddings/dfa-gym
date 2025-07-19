@@ -16,12 +16,12 @@ class ParallelTokenEnv(ParallelEnv):
         self.render_mode = render_mode
 
         # Agent identifiers
-        self.possible_agents = list(self.env.possible_agents)
+        self.possible_agents = self.env.possible_agents.copy()
 
     def reset(self, seed=None, options=None):
         obss, infos = self.env.reset(seed=seed, options=options)
 
-        self.agents = self.possible_agents[:]
+        self.agents = self.possible_agents.copy()
 
         if not self.black_death:
             return obss, infos
@@ -67,6 +67,6 @@ class ParallelTokenEnv(ParallelEnv):
     def action_space(self, agent):
         return self.env.action_space[agent]
 
-    def render(self, agent=None):
-        return self.env.render(agent=agent)
+    def render(self):
+        return self.env.render()
 

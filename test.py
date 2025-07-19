@@ -86,7 +86,7 @@ if __name__ == "__main__":
     ####
 
     env = token_env.TokenEnv(
-        n_agents=2,
+        n_agents=3,
         n_tokens=5,
         n_token_repeat=2,
         size=(7,7),
@@ -94,20 +94,23 @@ if __name__ == "__main__":
         use_fixed_map=True,
         slip_prob=(0.0, 0.0)
     )
-    env = DFAWrapper(env=env, n_agents=env.n_agents, label_f=token_env.TokenEnv.label_f)
-    env = gym2zoo(env)
+    env = DFAWrapper(env=env, n_agents=env.n_agents, label_f=token_env.TokenEnv.label_f, r_agg_f=token_env.TokenEnv.r_agg_f)
+    # env = gym2zoo(env)
     obs, info = env.reset()
     env.render()
+    # input(">>")
     done = False
     step = 0
 
     while not done:
-        actions = {agent: env.action_space(agent).sample() for agent in obs}
-        print(actions)
+        # actions = {agent: env.action_space(agent).sample() for agent in obs}
+        # print({agent: env.env.env.action_parser[actions[agent]] for agent in actions})
+        actions = env.action_space.sample()
+        print({agent: env.env.action_parser[actions[agent]] for agent in actions})
         obs, rewards, terms, truncs, infos = env.step(actions)
         env.render()
         print(step, rewards, terms, truncs, infos)
-        input(">>")
+        # input(">>")
 
         # for a in rewards:
         #     print(f" {a}: reward={rewards[a]}, done={terms[a] or truncs[a]}")

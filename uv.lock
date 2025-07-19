@@ -175,7 +175,7 @@ wheels = [
 
 [[package]]
 name = "token-env"
-version = "0.2.4"
+version = "0.2.3"
 source = { directory = "../token-env" }
 dependencies = [
     { name = "gymnasium" },

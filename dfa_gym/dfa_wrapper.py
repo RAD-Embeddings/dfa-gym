@@ -5,6 +5,8 @@ from dfa_samplers import DFASampler, RADSampler
 
 from typing import Any
 
+# TODO: Make sure that this env works as expected. Do more testing!!!
+
 __all__ = ["DFAWrapper"]
 
 class DFAWrapper(gym.Wrapper):
@@ -22,12 +24,14 @@ class DFAWrapper(gym.Wrapper):
             super().__init__(env)
 
         self.n_agents = n_agents
-        self.sampler = sampler if sampler is not None else RADSampler()
+        self.sampler = sampler if sampler is not None else RADSampler(n_tokens=env.n_tokens)
         self.label_f = label_f if label_f is not None else lambda obs: np.random.choice(self.sampler.n_tokens)
         self.r_agg_f = r_agg_f if r_agg_f is not None else lambda _, dfa_reward: dfa_reward
 
+        assert self.env.n_tokens == self.sampler.n_tokens
+
         # Agent identifiers
-        self.possible_agents = {f"agent_{i}" for i in range(self.n_agents)}
+        self.possible_agents = [f"A_{i}" for i in range(self.n_agents)]
 
         self.size_bound = self.sampler.get_size_bound()
 
@@ -45,6 +49,7 @@ class DFAWrapper(gym.Wrapper):
         })
 
         self.dfas = {}
+        self.dfa_dones = {}
         self.episode_rewards = {}
         self.t = 0
 
@@ -53,6 +58,7 @@ class DFAWrapper(gym.Wrapper):
         observations, info = self.env.reset(seed=seed, options=options)
         self.agents = self.possible_agents.copy()
         self.dfas = {agent: self.sampler.sample() for agent in self.agents}
+        self.dfa_dones = {agent: False for agent in self.agents}
         self.episode_rewards = {agent: [] for agent in self.agents}
         self.t = 0
         if self.n_agents == 1:
@@ -66,7 +72,7 @@ class DFAWrapper(gym.Wrapper):
         observations, rewards, terminations, truncations, infos = self.env.step(action)
         if self.n_agents == 1:
             agent = next(iter(self.agents)) # Get the only element of the set
-            symbol = self.label_f(observations)
+            symbol = self.label_f(observations, self.sampler.n_tokens)
             if symbol is not None:
                 self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
             wrapped_obs = {"obs": observations, "dfa_obs": self._dfa2obs(self.dfas[agent])}
@@ -81,27 +87,29 @@ class DFAWrapper(gym.Wrapper):
             return wrapped_obs, rewards, terminations, truncations, infos
         else:
             wrapped_obs = {}
-            for agent in self.agents:
-                symbol = self.label_f(observations[agent])
-                # print(agent, "symbol", symbol)
-                old_dfa = self.dfas[agent]
-                if symbol is not None:
-                    self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
-                wrapped_obs[agent] = {"obs": observations[agent], "dfa_obs": self._dfa2obs(self.dfas[agent])}
-                dfa_reward = 0
-                # print(old_dfa)
-                # print(self.dfas[agent])
-                if self.dfas[agent]._label(self.dfas[agent].start):
-                    dfa_reward = 1
-                elif self.dfas[agent].find_word() is None:
-                    dfa_reward = -1
-                rewards[agent] = self.r_agg_f(rewards[agent], dfa_reward if old_dfa is None or old_dfa.to_int() != self.dfas[agent].to_int() else 0)
-                terminations[agent] = terminations[agent] or dfa_reward != 0
+            for agent in observations:
+                if not terminations[agent] or not truncations[agent]:
+                    symbol = self.label_f(observations[agent], self.sampler.n_tokens)
+                    print(agent, "symbol", symbol)
+                    old_dfa = self.dfas[agent]
+                    if symbol is not None:
+                        self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
+                    wrapped_obs[agent] = {"obs": observations[agent], "dfa_obs": self._dfa2obs(self.dfas[agent])}
+                    dfa_reward = self._dfa2rew(self.dfas[agent])
+                    if dfa_reward != 0:
+                        self.dfa_dones[agent] = True
+                    current_dfa_reward = dfa_reward if old_dfa is None or old_dfa.to_int() != self.dfas[agent].to_int() else 0
+                    rewards[agent] = self.r_agg_f(rewards[agent], current_dfa_reward)
+            if all(self.dfa_dones[agent] for agent in observations if not terminations[agent] or not truncations[agent]):
+                print("X", [self.dfa_dones[agent] for agent in observations if not terminations[agent] or not truncations[agent]])
+                for agent in observations:
+                    rewards[agent] += 1e-2 * sum(self._dfa2rew(self.dfas[other]) for other in observations if other != agent)
+                    terminations[agent] = True
+            for agent in observations:
                 if rewards[agent] != 0:
                     self.episode_rewards[agent].append({"reward": rewards[agent], "t": self.t})
-                infos[agent]["episode_rewards"] = self.episode_rewards[agent].copy()
-                # infos[agent]["done"] = terminations[agent] or truncations[agent]
-            # self.agents = {agent for agent in self.agents if not terminations[agent] and not truncations[agent]}
+            for agent in self.possible_agents:
+                infos[agent] = {"episode_rewards": self.episode_rewards[agent].copy()}
             self.t += 1
             return wrapped_obs, rewards, terminations, truncations, infos
 
@@ -110,11 +118,18 @@ class DFAWrapper(gym.Wrapper):
         dfa_obs = np.pad(dfa_arr, (self.size_bound - dfa_arr.shape[0], 0), constant_values=0)
         return dfa_obs
 
-    def render(self, agent=None):
-        agents = self.agents if agent is None else [agent]
-        for agent in agents:
+    def _dfa2rew(self, dfa) -> int:
+        rew = 0
+        if dfa._label(dfa.start):
+            rew = 1
+        elif dfa.find_word() is None:
+            rew = -1
+        return rew
+
+    def render(self):
+        self.env.render()
+        for agent in self.possible_agents:
             print("****")
-            self.env.render(agent)
-            print(f"Agent {agent} DFA:")
+            print(f"{agent}'s DFA:")
             print(self.dfas[agent])
 
