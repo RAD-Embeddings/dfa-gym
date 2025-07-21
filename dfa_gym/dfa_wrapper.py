@@ -24,11 +24,11 @@ class DFAWrapper(gym.Wrapper):
             super().__init__(env)
 
         self.n_agents = n_agents
-        self.sampler = sampler if sampler is not None else RADSampler(n_tokens=env.n_tokens)
+        self.sampler = sampler if sampler is not None else RADSampler(n_tokens=env.unwrapped.n_tokens)
         self.label_f = label_f if label_f is not None else lambda obs: np.random.choice(self.sampler.n_tokens)
         self.r_agg_f = r_agg_f if r_agg_f is not None else lambda _, dfa_reward: dfa_reward
 
-        assert self.env.n_tokens == self.sampler.n_tokens
+        assert self.env.unwrapped.n_tokens == self.sampler.n_tokens
 
         # Agent identifiers
         self.possible_agents = [f"A_{i}" for i in range(self.n_agents)]
@@ -88,9 +88,9 @@ class DFAWrapper(gym.Wrapper):
         else:
             wrapped_obs = {}
             for agent in observations:
-                if not terminations[agent] or not truncations[agent]:
+                if not terminations[agent] and not truncations[agent]:
                     symbol = self.label_f(observations[agent], self.sampler.n_tokens)
-                    print(agent, "symbol", symbol)
+                    # print(agent, "symbol", symbol)
                     old_dfa = self.dfas[agent]
                     if symbol is not None:
                         self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
@@ -100,8 +100,7 @@ class DFAWrapper(gym.Wrapper):
                         self.dfa_dones[agent] = True
                     current_dfa_reward = dfa_reward if old_dfa is None or old_dfa.to_int() != self.dfas[agent].to_int() else 0
                     rewards[agent] = self.r_agg_f(rewards[agent], current_dfa_reward)
-            if all(self.dfa_dones[agent] for agent in observations if not terminations[agent] or not truncations[agent]):
-                print("X", [self.dfa_dones[agent] for agent in observations if not terminations[agent] or not truncations[agent]])
+            if all(self.dfa_dones[agent] for agent in observations if not terminations[agent] and not truncations[agent]):
                 for agent in observations:
                     rewards[agent] += 1e-2 * sum(self._dfa2rew(self.dfas[other]) for other in observations if other != agent)
                     terminations[agent] = True

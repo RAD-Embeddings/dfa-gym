@@ -95,7 +95,7 @@ if __name__ == "__main__":
         slip_prob=(0.0, 0.0)
     )
     env = DFAWrapper(env=env, n_agents=env.n_agents, label_f=token_env.TokenEnv.label_f, r_agg_f=token_env.TokenEnv.r_agg_f)
-    # env = gym2zoo(env)
+    env = gym2zoo(env)
     obs, info = env.reset()
     env.render()
     # input(">>")
@@ -103,10 +103,10 @@ if __name__ == "__main__":
     step = 0
 
     while not done:
-        # actions = {agent: env.action_space(agent).sample() for agent in obs}
-        # print({agent: env.env.env.action_parser[actions[agent]] for agent in actions})
-        actions = env.action_space.sample()
-        print({agent: env.env.action_parser[actions[agent]] for agent in actions})
+        actions = {agent: env.action_space(agent).sample() for agent in obs}
+        print({agent: env.env.env.action_parser[actions[agent]] for agent in actions})
+        # actions = env.action_space.sample()
+        # print({agent: env.env.action_parser[actions[agent]] for agent in actions})
         obs, rewards, terms, truncs, infos = env.step(actions)
         env.render()
         print(step, rewards, terms, truncs, infos)
