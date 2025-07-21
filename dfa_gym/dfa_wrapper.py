@@ -45,6 +45,7 @@ class DFAWrapper(gym.Wrapper):
             agent: spaces.Dict({
                 "obs": self.env.observation_space[agent],
                 "dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
+                "other_dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
             }) for agent in self.possible_agents
         })
 
@@ -65,7 +66,11 @@ class DFAWrapper(gym.Wrapper):
             agent = next(iter(self.agents)) # Get the only element of the set
             observations = {"obs": observations, "dfa_obs": self._dfa2obs(self.dfas[agent])}
         else:
-            observations = {agent: {"obs": observations[agent], "dfa_obs": self._dfa2obs(self.dfas[agent])} for agent in self.agents}
+            observations = {
+                agent: {"obs": observations[agent],
+                "dfa_obs": self._dfa2obs(self.dfas[agent]),
+                "other_dfa_obs": self._dfa2obs(self.dfas[next(iter(set(self.agents) - set([agent])))])} for agent in self.agents
+            }
         return observations, info
 
     def step(self, action: int) -> tuple[np.ndarray, int, bool, bool, dict[str, Any]]:
@@ -94,7 +99,11 @@ class DFAWrapper(gym.Wrapper):
                     old_dfa = self.dfas[agent]
                     if symbol is not None:
                         self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
-                    wrapped_obs[agent] = {"obs": observations[agent], "dfa_obs": self._dfa2obs(self.dfas[agent])}
+                    wrapped_obs[agent] = {
+                        "obs": observations[agent],
+                        "dfa_obs": self._dfa2obs(self.dfas[agent]),
+                        "other_dfa_obs": self._dfa2obs(self.dfas[next(iter(set(self.agents) - set([agent])))])
+                    }
                     dfa_reward = self._dfa2rew(self.dfas[agent])
                     if dfa_reward != 0:
                         self.dfa_dones[agent] = True

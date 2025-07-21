@@ -86,7 +86,7 @@ if __name__ == "__main__":
     ####
 
     env = token_env.TokenEnv(
-        n_agents=3,
+        n_agents=2,
         n_tokens=5,
         n_token_repeat=2,
         size=(7,7),
