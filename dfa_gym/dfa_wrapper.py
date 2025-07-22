@@ -44,8 +44,8 @@ class DFAWrapper(gym.Wrapper):
         }) if self.n_agents == 1 else gym.spaces.Dict({
             agent: spaces.Dict({
                 "obs": self.env.observation_space[agent],
-                "dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
-                "other_dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
+                "dfa_obs": spaces.Box(low=0, high=9, shape=(self.n_agents, self.size_bound), dtype=np.int64),
+                # "other_dfa_obss": spaces.Box(low=0, high=9, shape=(self.n_agents - 1, self.size_bound), dtype=np.int64),
             }) for agent in self.possible_agents
         })
 
@@ -68,8 +68,8 @@ class DFAWrapper(gym.Wrapper):
         else:
             observations = {
                 agent: {"obs": observations[agent],
-                "dfa_obs": self._dfa2obs(self.dfas[agent]),
-                "other_dfa_obs": self._dfa2obs(self.dfas[next(iter(set(self.agents) - set([agent])))])} for agent in self.agents
+                        "dfa_obs": np.array([self._dfa2obs(self.dfas[agent])] + [self._dfa2obs(self.dfas[other]) for other in self.agents if other != agent])
+                } for agent in self.agents
             }
         return observations, info
 
@@ -95,14 +95,12 @@ class DFAWrapper(gym.Wrapper):
             for agent in observations:
                 if not terminations[agent] and not truncations[agent]:
                     symbol = self.label_f(observations[agent], self.sampler.n_tokens)
-                    # print(agent, "symbol", symbol)
                     old_dfa = self.dfas[agent]
                     if symbol is not None:
                         self.dfas[agent] = self.dfas[agent].advance([symbol]).minimize()
                     wrapped_obs[agent] = {
                         "obs": observations[agent],
-                        "dfa_obs": self._dfa2obs(self.dfas[agent]),
-                        "other_dfa_obs": self._dfa2obs(self.dfas[next(iter(set(self.agents) - set([agent])))])
+                        "dfa_obs": np.array([self._dfa2obs(self.dfas[agent])] + [self._dfa2obs(self.dfas[other]) for other in self.agents if other != agent])
                     }
                     dfa_reward = self._dfa2rew(self.dfas[agent])
                     if dfa_reward != 0:
