@@ -34,7 +34,7 @@ class DFAWrapper(gym.Wrapper):
 
         self.size_bound = self.sampler.get_size_bound()
 
-        self.action_space = self.env.action_space if self.n_agents == 1 else gym.spaces.Dict({
+        self.action_space = gym.spaces.Dict({
             agent: self.env.action_space[agent] for agent in self.possible_agents
         })
         self.observation_space = gym.spaces.Dict({
@@ -57,7 +57,7 @@ class DFAWrapper(gym.Wrapper):
         self.dfa_dones = {agent: False for agent in self.agents}
         self.episode_rewards = {agent: [] for agent in self.agents}
         self.t = 0
-        if self.n_agents == 1:
+        if False:
             agent = next(iter(self.agents)) # Get the only element of the set
             observations = {"obs": observations, "dfa_obs": self._dfa2obs(self.dfas[agent])}
         else:
