@@ -9,18 +9,25 @@ from typing import Any
 __all__ = ["DFABisimEnv"]
 
 class DFABisimEnv(gym.Env):
+    metadata = {"render_modes": ["human", "ansi"], "name": "dfa_env"}
+
     def __init__(
         self,
         sampler: DFASampler | None = None,
-        timeout: int = 100
+        timeout: int = 100,
+        render_mode: str = "human"
     ):
         super().__init__()
+        assert render_mode in self.metadata["render_modes"]
+
         self.sampler = sampler if sampler is not None else RADSampler()
+        self.timeout = timeout
+        self.render_mode = render_mode
+
         self.size_bound = self.sampler.get_size_bound()
         self.action_space = spaces.Discrete(self.sampler.n_tokens)
         self.observation_space = spaces.Box(low=0, high=9, shape=(2*self.size_bound,), dtype=np.int64)
-        self.dfa = None
-        self.timeout = timeout
+        self.dfa_pair = [None, None]
         self.t = None
 
     def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[np.ndarray, dict[str, Any]]:
@@ -58,3 +65,11 @@ class DFABisimEnv(gym.Env):
         dfa_obs = np.array([int(i) for i in str(dfa.to_int())])
         obs = np.pad(dfa_obs, (size_bound - dfa_obs.shape[0], 0), constant_values=0)
         return obs
+
+    def render(self):
+        out = f"Left DFA:\n {self.dfa_pair[0]}\nRight DFA:\n {self.dfa_pair[1]}"
+        if self.render_mode == "human":
+            print(out)
+        else:
+            return out
+

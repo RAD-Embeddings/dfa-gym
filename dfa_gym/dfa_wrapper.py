@@ -5,11 +5,11 @@ from dfa_samplers import DFASampler, RADSampler
 
 from typing import Any
 
-# TODO: Make sure that this env works as expected. Do more testing!!!
-
 __all__ = ["DFAWrapper"]
 
 class DFAWrapper(gym.Wrapper):
+    metadata = {"render_modes": ["human", "ansi"], "name": "dfa_wrapper"}
+
     def __init__(
         self,
         env: str | gym.Env,
@@ -24,13 +24,13 @@ class DFAWrapper(gym.Wrapper):
             super().__init__(env)
 
         self.n_agents = n_agents
-        self.sampler = sampler if sampler is not None else RADSampler(n_tokens=env.unwrapped.n_tokens)
+        self.sampler = sampler if sampler is not None else RADSampler(n_tokens=self.env.unwrapped.n_tokens)
         self.label_f = label_f if label_f is not None else lambda obs: np.random.choice(self.sampler.n_tokens)
         self.r_agg_f = r_agg_f if r_agg_f is not None else lambda _, dfa_reward: dfa_reward
 
+        assert self.env.render_mode in self.metadata["render_modes"]
         assert self.env.unwrapped.n_tokens == self.sampler.n_tokens
 
-        # Agent identifiers
         self.possible_agents = [f"A_{i}" for i in range(self.n_agents)]
 
         self.size_bound = self.sampler.get_size_bound()
@@ -40,12 +40,11 @@ class DFAWrapper(gym.Wrapper):
         })
         self.observation_space = spaces.Dict({
             "obs": self.env.observation_space,
-            "dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64),
+            "dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64)
         }) if self.n_agents == 1 else gym.spaces.Dict({
             agent: spaces.Dict({
                 "obs": self.env.observation_space[agent],
-                "dfa_obs": spaces.Box(low=0, high=9, shape=(self.n_agents, self.size_bound), dtype=np.int64),
-                # "other_dfa_obss": spaces.Box(low=0, high=9, shape=(self.n_agents - 1, self.size_bound), dtype=np.int64),
+                "dfa_obs": spaces.Box(low=0, high=9, shape=(self.n_agents, self.size_bound), dtype=np.int64)
             }) for agent in self.possible_agents
         })
 
@@ -133,9 +132,14 @@ class DFAWrapper(gym.Wrapper):
         return rew
 
     def render(self):
-        self.env.render()
+        out = ""
         for agent in self.possible_agents:
-            print("****")
-            print(f"{agent}'s DFA:")
-            print(self.dfas[agent])
+            out += "****\n"
+            out += f"{agent}'s DFA:\n"
+            out += f"{self.dfas[agent]}\n"
+        if self.render_mode == "human":
+            self.env.render()
+            print(out)
+        else:
+            return self.env.render() + out
 
