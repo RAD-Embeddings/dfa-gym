@@ -1,6 +1,5 @@
 import numpy as np
 import gymnasium as gym
-from gymnasium import spaces
 from dfa_samplers import DFASampler, RADSampler
 
 from typing import Any
@@ -38,13 +37,10 @@ class DFAWrapper(gym.Wrapper):
         self.action_space = self.env.action_space if self.n_agents == 1 else gym.spaces.Dict({
             agent: self.env.action_space[agent] for agent in self.possible_agents
         })
-        self.observation_space = spaces.Dict({
-            "obs": self.env.observation_space,
-            "dfa_obs": spaces.Box(low=0, high=9, shape=(self.size_bound,), dtype=np.int64)
-        }) if self.n_agents == 1 else gym.spaces.Dict({
-            agent: spaces.Dict({
+        self.observation_space = gym.spaces.Dict({
+            agent: gym.spaces.Dict({
                 "obs": self.env.observation_space[agent],
-                "dfa_obs": spaces.Box(low=0, high=9, shape=(self.n_agents, self.size_bound), dtype=np.int64)
+                "dfa_obs": gym.spaces.Box(low=0, high=9, shape=(self.n_agents, self.size_bound), dtype=np.int64)
             }) for agent in self.possible_agents
         })
 
@@ -74,7 +70,7 @@ class DFAWrapper(gym.Wrapper):
 
     def step(self, action: int) -> tuple[np.ndarray, int, bool, bool, dict[str, Any]]:
         observations, rewards, terminations, truncations, infos = self.env.step(action)
-        if self.n_agents == 1:
+        if False:
             agent = next(iter(self.agents)) # Get the only element of the set
             symbol = self.label_f(observations, self.sampler.n_tokens)
             if symbol is not None:
