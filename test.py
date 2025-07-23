@@ -29,6 +29,10 @@ if __name__ == "__main__":
     ####
     test("DFABisimEnv-v1")
     ####
+    test("DFABisimEnv-5-tokens")
+    ####
+    test("DFABisimEnv-10-tokens")
+    ####
     env = token_env.TokenEnv(
         n_agents=1,
         use_fixed_map=True

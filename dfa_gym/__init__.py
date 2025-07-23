@@ -18,7 +18,6 @@ register(
     entry_point='dfa_gym.dfa_env:DFAEnv'
 )
 
-
 register(
     id='DFABisimEnv-v1',
     entry_point='dfa_gym.dfa_bisim_env:DFABisimEnv'
@@ -27,4 +26,16 @@ register(
 register(
     id='DFABisimProbEnv-v1',
     entry_point='dfa_gym.dfa_bisim_prob_env:DFABisimProbEnv'
+)
+
+register(
+    id='DFABisimEnv-5-tokens',
+    entry_point='dfa_gym.dfa_bisim_env:DFABisimEnv',
+    kwargs = {"sampler": RADSampler(n_tokens=5)}
+)
+
+register(
+    id='DFABisimEnv-10-tokens',
+    entry_point='dfa_gym.dfa_bisim_env:DFABisimEnv',
+    kwargs = {"sampler": RADSampler(n_tokens=10)}
 )
