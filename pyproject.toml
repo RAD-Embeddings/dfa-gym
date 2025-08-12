@@ -9,6 +9,7 @@ dependencies = [
     "gymnasium>=1.0.0",
     "token-env",
     "pettingzoo",
+    "dfax",
 ]
 
 [build-system]
@@ -18,3 +19,4 @@ build-backend = "hatchling.build"
 [tool.uv.sources]
 rad-embeddings = { path = "../rad-embeddings" }
 token-env = { path = "../token-env" }
+dfax = { path = "../dfax" }

@@ -1,5 +1,5 @@
 import jax
-from dfa_gym import TokenEnv
+from dfa_gym import TokenEnv, DFABisimEnv
 
 def test(env):
     key = jax.random.PRNGKey(30)
@@ -27,4 +27,5 @@ def test(env):
 
 if __name__ == '__main__':
     test(env=TokenEnv())
+    test(env=DFABisimEnv())
 
