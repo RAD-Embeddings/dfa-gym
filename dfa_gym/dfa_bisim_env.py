@@ -36,14 +36,22 @@ class DFABisimEnv(MultiAgentEnv):
             agent: spaces.Discrete(self.sampler.n_tokens)
             for agent in self.agents
         }
+        max_dfa_size = self.sampler.max_size
+        n_tokens = self.sampler.n_tokens
         self.observation_spaces = {
             agent: spaces.Dict({
-                "start_l": spaces.Discrete(self.sampler.max_size),
-                "labels_l": spaces.Box(low=0, high=1, shape=(self.sampler.max_size,), dtype=jnp.uint8),
-                "transitions_l": spaces.Box(low=0, high=self.sampler.max_size, shape=(self.sampler.max_size, self.sampler.n_tokens), dtype=jnp.uint8),
-                "start_r": spaces.Discrete(self.sampler.max_size),
-                "labels_r": spaces.Box(low=0, high=1, shape=(self.sampler.max_size,), dtype=jnp.uint8),
-                "transitions_r": spaces.Box(low=0, high=self.sampler.max_size, shape=(self.sampler.max_size, self.sampler.n_tokens), dtype=jnp.uint8)
+                "graph_l": spaces.Dict({
+                    "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 3), dtype=jnp.uint16),
+                    "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens), dtype=jnp.uint16),
+                    "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
+                    "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
+                }),
+                "graph_r": spaces.Dict({
+                    "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 3), dtype=jnp.uint16),
+                    "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens), dtype=jnp.uint16),
+                    "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
+                    "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
+                })
             })
             for agent in self.agents
         }
@@ -54,26 +62,13 @@ class DFABisimEnv(MultiAgentEnv):
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], State]:
 
-        def body_fn(carry):
-            key, dfa_l, dfa_r = carry
-            key, kl, kr = jax.random.split(key, 3)
-            dfa_l = self.sampler.sample(kl)
-            dfa_r = self.sampler.sample(kr)
-            return (key, dfa_l, dfa_r)
-
-        def cond_fn(carry):
-            _, dfa_l, dfa_r = carry
-            return dfa_l == dfa_r
-
         key, kl, kr = jax.random.split(key, 3)
         dfa_l = self.sampler.sample(kl)
         dfa_r = self.sampler.sample(kr)
 
-        _, dfa_l, dfa_r = jax.lax.while_loop(cond_fn, body_fn, (key, dfa_l, dfa_r))
-
         state = State(dfa_l=dfa_l, dfa_r=dfa_r, time=0)
         obs = self.get_obs(state=state)
-        return {"agent_0": obs}, state
+        return {self.agents[0]: obs}, state
 
     @partial(jax.jit, static_argnums=(0,))
     def step_env(
@@ -83,8 +78,8 @@ class DFABisimEnv(MultiAgentEnv):
         action: int
     ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
 
-        dfa_l = state.dfa_l.advance(action["agent_0"]).minimize()
-        dfa_r = state.dfa_r.advance(action["agent_0"]).minimize()
+        dfa_l = state.dfa_l.advance(action[self.agents[0]]).minimize()
+        dfa_r = state.dfa_r.advance(action[self.agents[0]]).minimize()
 
         reward_l = dfa_l.reward()
         reward_r = dfa_r.reward()
@@ -101,7 +96,7 @@ class DFABisimEnv(MultiAgentEnv):
         obs = self.get_obs(state=new_state)
         info = {}
 
-        return {"agent_0": obs}, new_state, {"agent_0": reward}, {"agent_0": done, "__all__": done}, info
+        return {self.agents[0]: obs}, new_state, {self.agents[0]: reward}, {self.agents[0]: done, "__all__": done}, info
 
     @partial(jax.jit, static_argnums=(0,))
     def get_obs(
@@ -109,11 +104,7 @@ class DFABisimEnv(MultiAgentEnv):
         state: State
     ) -> Dict[str, chex.Array]:
         return {
-            "start_l": state.dfa_l.start,
-            "labels_l": state.dfa_l.labels,
-            "transitions_l": state.dfa_l.transitions,
-            "start_r": state.dfa_r.start,
-            "labels_r": state.dfa_r.labels,
-            "transitions_r": state.dfa_r.transitions
+            "graph_l": state.dfa_l.to_graph(),
+            "graph_r": state.dfa_r.to_graph()
         }
 
