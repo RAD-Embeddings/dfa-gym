@@ -4,8 +4,8 @@ import jax.numpy as jnp
 from flax import struct
 from functools import partial
 from typing import Tuple, Dict
-from jaxmarl.environments import spaces
-from jaxmarl.environments.multi_agent_env import MultiAgentEnv
+from dfa_gym import spaces
+from dfa_gym import MultiAgentEnv
 
 import dfax
 from dfax.samplers import DFASampler, RADSampler
