@@ -10,7 +10,7 @@ from dfa_gym.env import MultiAgentEnv
 import dfax
 from dfax.samplers import DFASampler, RADSampler
 
-ACTION_MAP = jnp.array([(1, 0), (0, 1), (-1, 0), (0, -1), (0, 0)])
+ACTION_MAP = jnp.array([[1, 0], [0, 1], [-1, 0], [0, -1], [0, 0]])
 
 @struct.dataclass
 class State:
