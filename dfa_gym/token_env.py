@@ -5,7 +5,7 @@ from flax import struct
 from functools import partial
 from typing import Tuple, Dict
 from dfa_gym import spaces
-from dfa_gym import MultiAgentEnv
+from dfa_gym.env import MultiAgentEnv
 
 # ACTION_MAP = {0: (1, 0), 1: (0, 1), 2: (-1, 0), 3: (0, -1), 4: (0, 0)}
 ACTION_MAP = jnp.array([(1, 0), (0, 1), (-1, 0), (0, -1), (0, 0)])

@@ -5,7 +5,7 @@ from flax import struct
 from functools import partial
 from typing import Tuple, Dict
 from dfa_gym import spaces
-from dfa_gym import MultiAgentEnv
+from dfa_gym.env import MultiAgentEnv
 
 import dfax
 from dfax.samplers import DFASampler, RADSampler
