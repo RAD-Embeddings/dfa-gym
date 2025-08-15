@@ -1,5 +1,5 @@
 import jax
-from dfa_gym import TokenEnv, DFABisimEnv
+from dfa_gym import TokenEnv, DFABisimEnv, DFAWrapper
 
 def test(env):
 
@@ -15,7 +15,7 @@ def test(env):
         steps = 0
 
         while not done:
-            keys = jax.random.split(key, env.n_agents + 1)
+            keys = jax.random.split(key, env.num_agents + 1)
             key, subkeys = keys[0], keys[1:]
             actions = {agent: env.action_space(agent).sample(subkeys[i]) for i, agent in enumerate(env.agents)}
             key, subkey = jax.random.split(key)
@@ -30,4 +30,5 @@ def test(env):
 if __name__ == '__main__':
     test(env=TokenEnv())
     test(env=DFABisimEnv())
+    # test(env=DFAWrapper(env=TokenEnv(), label_f=TokenEnv.label_f, r_agg_f=TokenEnv.r_agg_f))
 

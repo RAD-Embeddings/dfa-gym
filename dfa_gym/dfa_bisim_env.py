@@ -1,19 +1,17 @@
 import jax
+import dfax
 import chex
 import jax.numpy as jnp
 from flax import struct
 from functools import partial
 from typing import Tuple, Dict
 from dfa_gym import spaces
-from dfa_gym.env import MultiAgentEnv
-
-import dfax
+from dfa_gym.env import MultiAgentEnv, State
 from dfax.samplers import DFASampler, RADSampler
 
-ACTION_MAP = jnp.array([(1, 0), (0, 1), (-1, 0), (0, -1), (0, 0)])
 
 @struct.dataclass
-class State:
+class DFABisimState(State):
     dfa_l: dfax.DFAx
     dfa_r: dfax.DFAx
     time: int
@@ -62,13 +60,13 @@ class DFABisimEnv(MultiAgentEnv):
     def reset(
         self,
         key: chex.PRNGKey
-    ) -> Tuple[Dict[str, chex.Array], State]:
+    ) -> Tuple[Dict[str, chex.Array], DFABisimState]:
 
         key, kl, kr = jax.random.split(key, 3)
         dfa_l = self.sampler.sample(kl)
         dfa_r = self.sampler.sample(kr)
 
-        state = State(dfa_l=dfa_l, dfa_r=dfa_r, time=0)
+        state = DFABisimState(dfa_l=dfa_l, dfa_r=dfa_r, time=0)
         obs = self.get_obs(state=state)
         return {self.agents[0]: obs}, state
 
@@ -76,9 +74,9 @@ class DFABisimEnv(MultiAgentEnv):
     def step_env(
         self,
         key: chex.PRNGKey,
-        state: State,
+        state: DFABisimState,
         action: int
-    ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
+    ) -> Tuple[Dict[str, chex.Array], DFABisimState, Dict[str, float], Dict[str, bool], Dict]:
 
         dfa_l = state.dfa_l.advance(action[self.agents[0]]).minimize()
         dfa_r = state.dfa_r.advance(action[self.agents[0]]).minimize()
@@ -87,7 +85,7 @@ class DFABisimEnv(MultiAgentEnv):
         reward_r = dfa_r.reward()
         reward = reward_l - reward_r
 
-        new_state = State(
+        new_state = DFABisimState(
             dfa_l=dfa_l,
             dfa_r=dfa_r,
             time=state.time+1
@@ -103,7 +101,7 @@ class DFABisimEnv(MultiAgentEnv):
     @partial(jax.jit, static_argnums=(0,))
     def get_obs(
         self,
-        state: State
+        state: DFABisimState
     ) -> Dict[str, chex.Array]:
         return {
             "graph_l": state.dfa_l.to_graph(),

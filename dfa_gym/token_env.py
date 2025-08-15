@@ -5,13 +5,13 @@ from flax import struct
 from functools import partial
 from typing import Tuple, Dict
 from dfa_gym import spaces
-from dfa_gym.env import MultiAgentEnv
+from dfa_gym.env import MultiAgentEnv, State
 
-# ACTION_MAP = {0: (1, 0), 1: (0, 1), 2: (-1, 0), 3: (0, -1), 4: (0, 0)}
+
 ACTION_MAP = jnp.array([(1, 0), (0, 1), (-1, 0), (0, -1), (0, 0)])
 
 @struct.dataclass
-class State:
+class TokenEnvState(State):
     agent_positions: jax.Array
     token_positions: jax.Array
     is_alive: jax.Array
@@ -56,7 +56,7 @@ class TokenEnv(MultiAgentEnv):
     def reset(
         self,
         key: chex.PRNGKey
-    ) -> Tuple[Dict[str, chex.Array], State]:
+    ) -> Tuple[Dict[str, chex.Array], TokenEnvState]:
         key, subkey = jax.random.split(key)
         grid_points = jnp.stack(jnp.meshgrid(jnp.arange(self.grid_shape[0]), jnp.arange(self.grid_shape[1])), -1)
         grid_flat = grid_points.reshape(-1,2)
@@ -64,19 +64,20 @@ class TokenEnv(MultiAgentEnv):
         locs = grid_flat[idx]
         agent_positions = locs[:self.n_agents]
         token_positions = locs[self.n_agents:].reshape(self.n_tokens, self.n_token_repeat, 2)
-        state = State(agent_positions=agent_positions,
+        state = TokenEnvState(agent_positions=agent_positions,
                          token_positions=token_positions,
                          is_alive=jnp.array([True for _ in jnp.arange(self.n_agents)]),
                          time=0)
         obs = self.get_obs(state=state)
         return obs, state
 
+    @partial(jax.jit, static_argnums=(0,))
     def step_env(
         self,
         key: chex.PRNGKey,
-        state: State,
+        state: TokenEnvState,
         actions: Dict[str, chex.Array]
-    ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
+    ) -> Tuple[Dict[str, chex.Array], TokenEnvState, Dict[str, float], Dict[str, bool], Dict]:
 
         _actions = jnp.array([actions[agent] for agent in self.agents])
 
@@ -96,7 +97,7 @@ class TokenEnv(MultiAgentEnv):
         rewards = jnp.where(jnp.logical_and(state.is_alive, collisions), self.collision_reward, 0.0)
         rewards = {agent: rewards[i] for i, agent in enumerate(self.agents)}
 
-        new_state = State(agent_positions=new_positions,
+        new_state = TokenEnvState(agent_positions=new_positions,
                              token_positions=state.token_positions,
                              is_alive=jnp.logical_and(state.is_alive, jnp.logical_not(collisions)),
                              time=state.time + 1)
@@ -110,9 +111,10 @@ class TokenEnv(MultiAgentEnv):
 
         return obs, new_state, rewards, dones, info
 
+    @partial(jax.jit, static_argnums=(0,))
     def get_obs(
         self,
-        state: State
+        state: TokenEnvState
     ) -> Dict[str, chex.Array]:
 
         def obs_for_agent(i):
@@ -134,4 +136,14 @@ class TokenEnv(MultiAgentEnv):
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
         return {agent: obs[i] for i, agent in enumerate(self.agents)}
 
+    @staticmethod
+    @jax.jit
+    def label_f(state: TokenEnvState) -> int:
+        # TODO
+        pass
+
+    @staticmethod
+    @jax.jit
+    def r_agg_f(env_rew, wrapper_rew) -> int:
+        return jnp.where(env_rew == self.collision_reward, env_rew, wrapper_rew)
 

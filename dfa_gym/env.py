@@ -15,8 +15,7 @@ from dfa_gym.spaces import Space
 
 @struct.dataclass
 class State:
-    done: chex.Array
-    step: int
+    pass
 
 
 class MultiAgentEnv(object):
