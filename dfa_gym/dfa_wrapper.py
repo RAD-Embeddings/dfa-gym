@@ -27,6 +27,8 @@ class DFAWrapper(MultiAgentEnv):
         self.env = env
         self.sampler = sampler
 
+        assert self.sampler.n_tokens == self.env.n_tokens
+
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
 
         self.action_spaces = {
