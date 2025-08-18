@@ -136,14 +136,22 @@ class TokenEnv(MultiAgentEnv):
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
         return {agent: obs[i] for i, agent in enumerate(self.agents)}
 
-    @staticmethod
-    @jax.jit
-    def label_f(state: TokenEnvState) -> int:
-        # TODO
-        pass
+    @partial(jax.jit, static_argnums=(0,))
+    def label_f(self, state: TokenEnvState) -> Dict[str, int]:
 
-    @staticmethod
-    @jax.jit
-    def r_agg_f(env_rew, wrapper_rew) -> int:
+        diffs = state.agent_positions[:, None, None, :] - state.token_positions[None, :, :, :]
+        matches = jnp.all(diffs == 0, axis=-1)
+        matches_any = jnp.any(matches, axis=-1)
+        matches_any_and_alive = jnp.logical_and(matches_any, state.is_alive[:, None])
+
+        has_match = jnp.any(matches_any_and_alive, axis=1)
+        token_idx = jnp.argmax(matches_any_and_alive, axis=1)
+
+        agent_token_matches = jnp.where(has_match, token_idx, -1)
+
+        return {self.agents[agent_idx]: token_idx for agent_idx, token_idx in enumerate(agent_token_matches)}
+
+    @partial(jax.jit, static_argnums=(0,))
+    def r_agg_f(self, env_rew, wrapper_rew) -> int:
         return jnp.where(env_rew == self.collision_reward, env_rew, wrapper_rew)
 

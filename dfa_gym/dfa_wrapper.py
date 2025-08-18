@@ -21,15 +21,11 @@ class DFAWrapper(MultiAgentEnv):
     def __init__(
         self,
         env: MultiAgentEnv,
-        label_f: Callable,
-        r_agg_f: Callable,
         sampler: DFASampler = RADSampler()
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.label_f = label_f
-        self.r_agg_f = r_agg_f
 
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
 
@@ -83,13 +79,13 @@ class DFAWrapper(MultiAgentEnv):
 
         env_obs, env_state, env_rewards, env_dones, env_info = self.env.step_env(key, state.env_state, action)
 
-        symbols = self.label_f(env_state)
+        symbols = self.env.label_f(env_state)
 
         dfas = {agent: state.dfas[agent].advance(symbols[agent]).minimize() for agent in self.agents}
 
         state = DFAWrapperState(dfas=dfas, env_obs=env_obs, env_state=env_state)
 
-        rewards = {agent: self.r_agg_f(dfas[agent].reward(), env_rewards[agent]) for agent in self.agents}
+        rewards = {agent: self.env.r_agg_f(env_rew=env_rewards[agent], wrapper_rew=dfas[agent].reward()) for agent in self.agents}
 
         _dones = jnp.array([jnp.logical_or(rewards[agent] != 0, env_dones[agent]) for agent in self.agents])
         dones = {agent: _dones[i] for i, agent in enumerate(self.agents)}

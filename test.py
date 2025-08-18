@@ -30,5 +30,5 @@ def test(env):
 if __name__ == '__main__':
     test(env=TokenEnv())
     test(env=DFABisimEnv())
-    # test(env=DFAWrapper(env=TokenEnv(), label_f=TokenEnv.label_f, r_agg_f=TokenEnv.r_agg_f))
+    test(env=DFAWrapper(env=TokenEnv()))
 
