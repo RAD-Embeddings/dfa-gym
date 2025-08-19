@@ -143,12 +143,11 @@ class TokenEnv(MultiAgentEnv):
         diffs = state.agent_positions[:, None, None, :] - state.token_positions[None, :, :, :]
         matches = jnp.all(diffs == 0, axis=-1)
         matches_any = jnp.any(matches, axis=-1)
-        matches_any_and_alive = jnp.logical_and(matches_any, state.is_alive[:, None])
 
-        has_match = jnp.any(matches_any_and_alive, axis=1)
-        token_idx = jnp.argmax(matches_any_and_alive, axis=1)
+        has_match = jnp.any(matches_any, axis=1)
+        token_idx = jnp.argmax(matches_any, axis=1)
 
-        agent_token_matches = jnp.where(has_match, token_idx, -1)
+        agent_token_matches = jnp.where(jnp.logical_and(has_match, state.is_alive), token_idx, -1)
 
         return {self.agents[agent_idx]: token_idx for agent_idx, token_idx in enumerate(agent_token_matches)}
 
