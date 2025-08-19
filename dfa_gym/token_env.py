@@ -151,7 +151,3 @@ class TokenEnv(MultiAgentEnv):
 
         return {self.agents[agent_idx]: token_idx for agent_idx, token_idx in enumerate(agent_token_matches)}
 
-    @partial(jax.jit, static_argnums=(0,))
-    def r_agg_f(self, env_rew, wrapper_rew) -> int:
-        return jnp.where(env_rew == self.collision_reward, env_rew, wrapper_rew)
-
