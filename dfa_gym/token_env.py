@@ -22,9 +22,9 @@ class TokenEnv(MultiAgentEnv):
     def __init__(
         self,
         n_agents: int = 3,
-        n_tokens: int = 5,
+        n_tokens: int = 10,
         n_token_repeat: int = 2,
-        grid_shape: Tuple[int, int] = (5, 5),
+        grid_shape: Tuple[int, int] = (7, 7),
         use_fixed_map: bool = False,
         max_steps_in_episode: int = 100,
         collision_reward = -1e2,
@@ -57,6 +57,7 @@ class TokenEnv(MultiAgentEnv):
         self,
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], TokenEnvState]:
+        key = jnp.where(self.use_fixed_map, jax.random.PRNGKey(42), key)
         key, subkey = jax.random.split(key)
         grid_points = jnp.stack(jnp.meshgrid(jnp.arange(self.grid_shape[0]), jnp.arange(self.grid_shape[1])), -1)
         grid_flat = grid_points.reshape(-1,2)

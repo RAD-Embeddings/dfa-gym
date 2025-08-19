@@ -83,11 +83,29 @@ class DFAWrapper(MultiAgentEnv):
 
         symbols = self.env.label_f(env_state)
 
-        dfas = {agent: state.dfas[agent].advance(symbols[agent]).minimize() for agent in self.agents}
+        dfas = {
+            agent: jax.lax.cond(
+                env_dones[agent],
+                lambda _: state.dfas[agent],
+                lambda _: state.dfas[agent].advance(symbols[agent]).minimize(),
+                operand=None
+            )
+            for agent in self.agents
+        }
 
         state = DFAWrapperState(dfas=dfas, env_obs=env_obs, env_state=env_state)
 
-        rewards = {agent: self.env.r_agg_f(env_rew=env_rewards[agent], wrapper_rew=dfas[agent].reward()) for agent in self.agents}
+        dfa_rewards = {
+            agent: jax.lax.cond(
+                env_dones[agent],
+                lambda _: 0,
+                lambda _: dfas[agent].reward(),
+                operand=None
+            )
+            for agent in self.agents
+        }
+
+        rewards = {agent: self.env.r_agg_f(env_rew=env_rewards[agent], wrapper_rew=dfa_rewards[agent]) for agent in self.agents}
 
         _dones = jnp.array([jnp.logical_or(rewards[agent] != 0, env_dones[agent]) for agent in self.agents])
         dones = {agent: _dones[i] for i, agent in enumerate(self.agents)}
