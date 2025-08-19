@@ -22,11 +22,13 @@ class DFAWrapper(MultiAgentEnv):
     def __init__(
         self,
         env: MultiAgentEnv,
-        sampler: DFASampler = RADSampler()
+        sampler: DFASampler = RADSampler(),
+        eoe_reward_ratio: float = 1e-2
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
+        self.eoe_reward_ratio = eoe_reward_ratio
 
         assert self.sampler.n_tokens == self.env.n_tokens
 
@@ -103,7 +105,7 @@ class DFAWrapper(MultiAgentEnv):
             agent: jax.lax.cond(
                 state.dfa_dones[agent],
                 lambda _: 0,
-                lambda _: state.dfas[agent].reward(),
+                lambda _: dfas[agent].reward(),
                 operand=None
             )
             for agent in self.agents
@@ -128,6 +130,17 @@ class DFAWrapper(MultiAgentEnv):
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
+
+        dfa_rewards_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
+        rewards = {
+            agent: jax.lax.cond(
+                dones["__all__"],
+                lambda _: rewards[agent] + self.eoe_reward_ratio * (dfa_rewards_sum - dfas[agent].reward()),
+                lambda _: rewards[agent],
+                operand=None
+            )
+            for agent in self.agents
+        }
 
         infos = {}
 
