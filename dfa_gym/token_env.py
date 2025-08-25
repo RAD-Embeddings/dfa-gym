@@ -28,7 +28,7 @@ class TokenEnv(MultiAgentEnv):
         grid_shape: Tuple[int, int] = (7, 7),
         use_fixed_map: bool = False,
         max_steps_in_episode: int = 100,
-        collision_reward = -1e2,
+        collision_reward = -1e1,
         black_death = True
     ) -> None:
         super().__init__(num_agents=n_agents)

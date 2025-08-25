@@ -23,12 +23,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        eoe_reward_ratio: float = 1e-2
+        max_eoe_reward: float = 1e-1
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.eoe_reward_ratio = eoe_reward_ratio
+        self.eoe_reward_ratio = max_eoe_reward / (self.num_agents - 1)
 
         assert self.sampler.n_tokens == self.env.n_tokens
 
