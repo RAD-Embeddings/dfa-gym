@@ -1,5 +1,6 @@
 import jax
 import chex
+import numpy as np
 import jax.numpy as jnp
 from flax import struct
 from functools import partial
@@ -150,4 +151,32 @@ class TokenEnv(MultiAgentEnv):
         agent_token_matches = jnp.where(jnp.logical_and(has_match, state.is_alive), token_idx, -1)
 
         return {self.agents[agent_idx]: token_idx for agent_idx, token_idx in enumerate(agent_token_matches)}
+
+    def render(self, state: TokenEnvState):
+        empty_cell = "."
+        grid = np.full(self.grid_shape, empty_cell, dtype=object)
+
+        for token, positions in enumerate(state.token_positions):
+            for pos in positions:
+                grid[pos[0], pos[1]] = f"{token}"
+
+        for agent in range(self.n_agents):
+            pos = state.agent_positions[agent]
+            current = grid[pos[0], pos[1]]
+            if current == empty_cell:
+                grid[pos[0], pos[1]] = f"A_{agent}"
+            else:
+                grid[pos[0], pos[1]] = f"A_{agent},{current}"
+
+        max_width = max(len(str(cell)) for row in grid for cell in row)
+
+        out = ""
+        h_line = "+" + "+".join(["-" * (max_width + 2) for _ in range(self.grid_shape[1])]) + "+"
+        out += h_line + "\n"
+        for row in grid:
+            row_str = "| " + " | ".join(f"{str(cell):<{max_width}}" for cell in row) + " |"
+            out += row_str + "\n"
+            out += h_line + "\n"
+
+        print(out)
 
