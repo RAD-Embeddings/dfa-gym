@@ -26,7 +26,7 @@ class TokenEnv(MultiAgentEnv):
         n_tokens: int = 10,
         n_token_repeat: int = 2,
         grid_shape: Tuple[int, int] = (7, 7),
-        use_fixed_map: bool = False,
+        fixed_map_seed: int | None = None,
         max_steps_in_episode: int = 100,
         collision_reward = -1e1,
         black_death = True
@@ -37,7 +37,7 @@ class TokenEnv(MultiAgentEnv):
         self.n_token_repeat = n_token_repeat
         self.grid_shape = grid_shape
         self.grid_shape_arr = jnp.array(self.grid_shape)
-        self.use_fixed_map = use_fixed_map
+        self.fixed_map_seed = fixed_map_seed
         self.max_steps_in_episode = max_steps_in_episode
         self.collision_reward = collision_reward
         self.black_death = black_death
@@ -58,7 +58,8 @@ class TokenEnv(MultiAgentEnv):
         self,
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], TokenEnvState]:
-        key = jnp.where(self.use_fixed_map, jax.random.PRNGKey(42), key)
+        if self.fixed_map_seed is not None:
+            key = jax.random.PRNGKey(self.fixed_map_seed)
         key, subkey = jax.random.split(key)
         grid_points = jnp.stack(jnp.meshgrid(jnp.arange(self.grid_shape[0]), jnp.arange(self.grid_shape[1])), -1)
         grid_flat = grid_points.reshape(-1,2)
