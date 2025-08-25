@@ -162,3 +162,12 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
+    def render(self, state: DFAWrapperState):
+        out = ""
+        for agent in self.agents:
+            out += "****\n"
+            out += f"{agent}'s DFA:\n"
+            out += f"{state.dfas[agent]}\n"
+        self.env.render(state.env_state)
+        print(out)
+
