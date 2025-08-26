@@ -131,7 +131,7 @@ class DFAWrapper(MultiAgentEnv):
             agent: jax.lax.cond(
                 state.dfa_dones[agent],
                 lambda _: 0.0,
-                lambda _: dfas[agent].reward() - 0.9 * (dfas[agent].n_states * 0.1) + (state.dfas[agent].n_states * 0.1),
+                lambda _: dfas[agent].reward(),
                 operand=None
             )
             for agent in self.agents
@@ -139,6 +139,16 @@ class DFAWrapper(MultiAgentEnv):
 
         dfa_dones = {
             agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
+            for agent in self.agents
+        }
+
+        dfa_rewards = {
+            agent: jax.lax.cond(
+                dfa_dones[agent],
+                lambda _: dfa_rewards[agent],
+                lambda _: dfa_rewards[agent] + 0.9 * (1 / dfas[agent].dist2accept) - (1 / dfas[agent].dist2accept),
+                operand=None
+            )
             for agent in self.agents
         }
 
