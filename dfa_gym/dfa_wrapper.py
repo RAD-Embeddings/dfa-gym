@@ -60,7 +60,7 @@ class DFAWrapper(MultiAgentEnv):
             n_other = self.num_agents - 1
             self.observation_spaces = {
                 agent: spaces.Dict({
-                    "agent_id": spaces.Box(low=0, high=1, shape=(max_dfa_size,), dtype=jnp.uint16),
+                    "agent_id": spaces.Box(low=0, high=1, shape=(self.num_agents,), dtype=jnp.uint16),
                     "assume": spaces.Dict({
                         "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other, 4), dtype=jnp.uint16),
                         "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other*max_dfa_size*n_other, n_tokens + 8), dtype=jnp.uint16),
