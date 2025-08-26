@@ -130,8 +130,8 @@ class DFAWrapper(MultiAgentEnv):
         dfa_rewards = {
             agent: jax.lax.cond(
                 state.dfa_dones[agent],
-                lambda _: 0,
-                lambda _: dfas[agent].reward() - 0.9 * dfas[agent].n_states + state.dfas[agent].n_states,
+                lambda _: 0.0,
+                lambda _: dfas[agent].reward() - 0.9 * (dfas[agent].n_states * 0.1) + (state.dfas[agent].n_states * 0.1),
                 operand=None
             )
             for agent in self.agents
