@@ -20,6 +20,8 @@ def test(env):
             actions = {agent: env.action_space(agent).sample(subkeys[i]) for i, agent in enumerate(env.agents)}
             key, subkey = jax.random.split(key)
             obs, state, rewards, dones, info = env.step(actions=actions, state=state, key=subkey)
+            print(obs)
+            input()
             done = dones["__all__"]
             steps += 1
 
@@ -28,7 +30,7 @@ def test(env):
     print(f"Test completed for {n} samples.")
 
 if __name__ == '__main__':
-    test(env=TokenEnv())
-    test(env=DFABisimEnv())
+    # test(env=TokenEnv())
+    # test(env=DFABisimEnv())
     test(env=DFAWrapper(env=TokenEnv()))
 

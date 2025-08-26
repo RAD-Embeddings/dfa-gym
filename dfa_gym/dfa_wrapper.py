@@ -3,9 +3,10 @@ import dfax
 import chex
 import jax.numpy as jnp
 from flax import struct
+from dfa_gym import spaces
 from functools import partial
 from typing import Tuple, Dict, Callable
-from dfa_gym import spaces
+from dfax.utils import list2batch, batch2graph
 from dfa_gym.env import MultiAgentEnv, State
 from dfax.samplers import DFASampler, RADSampler
 
@@ -28,7 +29,7 @@ class DFAWrapper(MultiAgentEnv):
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.eoe_reward_ratio = max_eoe_reward / (self.num_agents - 1)
+        self.eoe_reward_ratio = 0 if self.num_agents == 1 else max_eoe_reward / (self.num_agents - 1)
 
         assert self.sampler.n_tokens == self.env.n_tokens
 
@@ -40,19 +41,41 @@ class DFAWrapper(MultiAgentEnv):
         }
         max_dfa_size = self.sampler.max_size
         n_tokens = self.sampler.n_tokens
-        self.observation_spaces = {
-            agent: spaces.Dict({
-                "graph": spaces.Dict({
-                    "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
-                    "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
-                    "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
-                    "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
-                    "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
-                }),
-                "obs": self.env.observation_space(agent)
-            })
-            for agent in self.agents
-        }
+        if self.num_agents == 1:
+            self.observation_spaces = {
+                agent: spaces.Dict({
+                    "obs": self.env.observation_space(agent),
+                    "guarantee": spaces.Dict({
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
+                    })
+                })
+                for agent in self.agents
+            }
+        else:
+            self.observation_spaces = {
+                agent: spaces.Dict({
+                    "assume": spaces.Dict({
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
+                    }),
+                    "obs": self.env.observation_space(agent),
+                    "guarantee": spaces.Dict({
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
+                    })
+                })
+                for agent in self.agents
+            }
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(
@@ -157,8 +180,24 @@ class DFAWrapper(MultiAgentEnv):
         self,
         state: DFAWrapperState
     ) -> Dict[str, chex.Array]:
+        if self.num_agents == 1:
+            return {
+                agent: {
+                    "obs": state.env_obs[agent],
+                    "guarantee": state.dfas[agent].to_graph()
+                }
+                for agent in self.agents
+            }
+
+        graphs = [state.dfas[agent].to_graph() for agent in self.agents]
+        assumes = {agent: batch2graph(list2batch(graphs[:i] + graphs[i + 1:])) for i, agent in enumerate(self.agents)}
+        guarantees = {agent: graphs[i] for i, agent in enumerate(self.agents)}
         return {
-            agent: {"graph": state.dfas[agent].to_graph(), "obs": state.env_obs[agent]}
+            agent: {
+                "assume": assumes[agent],
+                "obs": state.env_obs[agent],
+                "guarantee": guarantees[agent]
+            }
             for agent in self.agents
         }
 
