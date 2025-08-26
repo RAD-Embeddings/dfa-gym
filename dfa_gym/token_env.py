@@ -97,7 +97,18 @@ class TokenEnv(MultiAgentEnv):
         eq = eq.at[jnp.diag_indices(self.n_agents)].set(False)
         collisions = jnp.any(eq, axis=1)
 
-        rewards = jnp.where(jnp.logical_and(state.is_alive, collisions), self.collision_reward, 0.0)
+        rewards = jnp.where(
+            jnp.logical_and(
+                state.is_alive,
+                collisions
+            ),
+            self.collision_reward,
+            jnp.where(
+                jnp.all(ACTION_MAP[_actions] == ACTION_MAP[-1], axis=-1), # NOOP
+                0.0,
+                -0.001
+            )
+        )
         rewards = {agent: rewards[i] for i, agent in enumerate(self.agents)}
 
         new_state = TokenEnvState(agent_positions=new_positions,
