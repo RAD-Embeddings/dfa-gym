@@ -8,7 +8,7 @@ from functools import partial
 from typing import Tuple, Dict, Callable
 from dfax.utils import list2batch, batch2graph
 from dfa_gym.env import MultiAgentEnv, State
-from dfax.samplers import DFASampler, RADSampler
+from dfax.samplers import DFASampler, RADSampler, ConflictSampler
 
 
 @struct.dataclass
@@ -32,6 +32,7 @@ class DFAWrapper(MultiAgentEnv):
         self.eoe_reward_ratio = 0 if self.num_agents == 1 else max_eoe_reward / (self.num_agents - 1)
 
         assert self.sampler.n_tokens == self.env.n_tokens
+        assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
 
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
         self.agent_ids = {agent: agent_id for agent, agent_id in zip(self.agents, jnp.eye(self.num_agents))}
@@ -86,14 +87,16 @@ class DFAWrapper(MultiAgentEnv):
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], DFAWrapperState]:
 
-        keys = jax.random.split(key, self.num_agents + 2)
-        key = keys[0]
-        k_env = keys[1]
-        k_dfas = keys[2:]
+        key, subkey = jax.random.split(key)
+        env_obs, env_state = self.env.reset(subkey)
 
-        env_obs, env_state = self.env.reset(k_env)
-
-        dfas = {agent: self.sampler.sample(k_dfas[i]) for i, agent in enumerate(self.agents)}
+        if isinstance(self.sampler, ConflictSampler):
+            key, subkey = jax.random.split(key)
+            dfas = self.sampler.sample(subkey)
+        else:
+            keys = jax.random.split(key, self.num_agents + 1)
+            key, subkeys = keys[0], keys[1:]
+            dfas = {agent: self.sampler.sample(subkeys[i]) for i, agent in enumerate(self.agents)}
 
         state = DFAWrapperState(
             dfas=dfas,
