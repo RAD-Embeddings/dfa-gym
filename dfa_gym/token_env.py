@@ -62,7 +62,7 @@ class TokenEnv(MultiAgentEnv):
             for agent in self.agents
         }
         self.observation_spaces = {
-            agent: spaces.Box(low=0, high=1, shape=(self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
+            agent: spaces.Box(low=0, high=1, shape=(1 + self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
             for agent in self.agents
         }
 
@@ -265,17 +265,22 @@ class TokenEnv(MultiAgentEnv):
     ) -> Dict[str, chex.Array]:
 
         def obs_for_agent(i):
-            base = jnp.zeros((self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
+            base = jnp.zeros((1 + self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
             offset = (self.grid_shape_arr // 2) - state.agent_positions[i]
+
+            def place_wall(val):
+                rel = (state.wall_positions + offset) % self.grid_shape_arr
+                return val.at[0, rel[:, 0], rel[:, 1]].set(1)
+            b0 = place_wall(base)
 
             def place_token(token_idx, val):
                 rel = (state.token_positions[token_idx] + offset) % self.grid_shape_arr
-                return val.at[token_idx, rel[:, 0], rel[:, 1]].set(1)
-            b1 = jax.lax.fori_loop(0, self.n_tokens, place_token, base)
+                return val.at[token_idx + 1, rel[:, 0], rel[:, 1]].set(1)
+            b1 = jax.lax.fori_loop(0, self.n_tokens, place_token, b0)
 
             def place_other(other_idx, val):
                 rel = (state.agent_positions[other_idx + (other_idx >= i)] + offset) % self.grid_shape_arr
-                return val.at[self.n_tokens + other_idx, rel[0], rel[1]].set(1)
+                return val.at[self.n_tokens + other_idx + 1, rel[0], rel[1]].set(1)
             b2 = jax.lax.fori_loop(0, self.n_agents - 1, place_other, b1)
 
             return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b2, base)
