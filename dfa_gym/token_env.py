@@ -9,7 +9,13 @@ from dfa_gym import spaces
 from dfa_gym.env import MultiAgentEnv, State
 
 
-ACTION_MAP = jnp.array([(1, 0), (0, 1), (-1, 0), (0, -1), (0, 0)])
+ACTION_MAP = jnp.array([
+    [ 1,  0], # DOWN
+    [ 0,  1], # RIGHT
+    [-1,  0], # UP
+    [ 0, -1], # LEFT
+    [ 0,  0]] # NOOP
+)
 
 @struct.dataclass
 class TokenEnvState(State):
@@ -29,7 +35,8 @@ class TokenEnv(MultiAgentEnv):
         fixed_map_seed: int | None = None,
         max_steps_in_episode: int = 100,
         collision_reward = -1e1,
-        black_death = True
+        black_death = True,
+        is_walled=False
     ) -> None:
         super().__init__(num_agents=n_agents)
         self.n_agents = n_agents
@@ -41,6 +48,7 @@ class TokenEnv(MultiAgentEnv):
         self.max_steps_in_episode = max_steps_in_episode
         self.collision_reward = collision_reward
         self.black_death = black_death
+        self.is_walled = is_walled
 
         self.agents = [f"agent_{i}" for i in range(self.n_agents)]
 
@@ -85,11 +93,20 @@ class TokenEnv(MultiAgentEnv):
         _actions = jnp.array([actions[agent] for agent in self.agents])
 
         def move_agent(pos, a, is_agent_alive):
-            return jnp.where(
-                is_agent_alive,
-                (pos + jnp.array(ACTION_MAP[a])) % self.grid_shape_arr,
-                pos
-            )
+            new_pos = pos + ACTION_MAP[a]
+            new_pos_circ = new_pos % self.grid_shape_arr
+            if self.is_walled:
+                return jnp.where(
+                    jnp.logical_and(is_agent_alive, jnp.all(new_pos == new_pos_circ)),
+                    new_pos,
+                    pos
+                )
+            else:
+                return jnp.where(
+                    is_agent_alive,
+                    new_pos_circ,
+                    pos
+                )
 
         new_positions = jax.vmap(move_agent, in_axes=(0, 0, 0))(state.agent_positions, _actions, state.is_alive)
 
