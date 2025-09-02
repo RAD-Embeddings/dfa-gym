@@ -239,7 +239,7 @@ class TokenEnv(MultiAgentEnv):
             if self.init_state is not None:
                 def place_wall(val):
                     rel = (state.wall_positions + offset) % self.grid_shape_arr
-                    return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(1)
+                    return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(jnp.logical_not(state.is_wall_disabled).astype(jnp.uint8))
                 b = place_wall(b)
                 idx_offset += 1
 
