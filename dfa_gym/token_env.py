@@ -62,11 +62,12 @@ class TokenEnv(MultiAgentEnv):
             self.init_state = self.parse(layout)
         self.num_agents = self.n_agents
 
-        self.obs_shape = 0
-        if self.init_state is not None: self.obs_shape += 1
-        if self.n_tokens > 0: self.obs_shape += self.n_tokens
-        if self.n_agents > 1: self.obs_shape += self.n_agents - 1
-        if self.n_buttons > 0: self.obs_shape += self.n_buttons
+        channel_dim = 0
+        if self.init_state is not None: channel_dim += 1
+        if self.n_tokens > 0: channel_dim += self.n_tokens
+        if self.n_agents > 1: channel_dim += self.n_agents - 1
+        if self.n_buttons > 0: channel_dim += self.n_buttons
+        self.obs_shape = (channel_dim, *self.grid_shape)
 
         self.action_spaces = {
             agent: spaces.Discrete(len(ACTION_MAP))
