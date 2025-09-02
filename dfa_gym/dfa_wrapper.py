@@ -35,7 +35,7 @@ class DFAWrapper(MultiAgentEnv):
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
 
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
-        self.agent_ids = {agent: agent_id for agent, agent_id in zip(self.agents, jnp.eye(self.num_agents))}
+        self.agent_ids = {agent: agent_id for agent, agent_id in zip(self.agents, jnp.arange(self.num_agents))}
 
         self.action_spaces = {
             agent: self.env.action_space(agent)
