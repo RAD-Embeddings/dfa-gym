@@ -11,17 +11,32 @@ def test(env):
 
         key, subkey = jax.random.split(key)
         obs, state = env.reset(key=subkey)
+        env.render(state)
         done = False
         steps = 0
 
         while not done:
             keys = jax.random.split(key, env.num_agents + 1)
             key, subkeys = keys[0], keys[1:]
-            actions = {agent: env.action_space(agent).sample(subkeys[i]) for i, agent in enumerate(env.agents)}
+            # actions = {agent: env.action_space(agent).sample(subkeys[i]) for i, agent in enumerate(env.agents)}
+            actions = {}
+            for agent in env.agents:
+                actions[agent] = int(input(f"Action for {agent}\n"))
             key, subkey = jax.random.split(key)
             obs, state, rewards, dones, info = env.step(actions=actions, state=state, key=subkey)
-            print(obs)
-            input()
+            env.render(state)
+            # print(obs)
+            jax.numpy.set_printoptions(threshold=10000)
+            for i in obs:
+                print(i)
+                print(obs[i])
+                print(obs[i].shape)
+            print(env.label_f(state))
+            print(rewards)
+            print(dones)
+            # print(actions)
+            # env.render(state)
+            # input()
             done = dones["__all__"]
             steps += 1
 
@@ -29,8 +44,43 @@ def test(env):
 
     print(f"Test completed for {n} samples.")
 
+# layout = """
+# 8....#0....1
+# .....#......
+# ..b..#......
+# .....#3....2
+# .....#####a#
+# A...........
+# B...........
+# .....#####b#
+# .....#4....5
+# ..a..#......
+# .....#......
+# 9....#7....6
+# """
+
+layout = """
+[ 8 ][   ][   ][   ][   ][   ][   ][ # ][ 0 ][   ][   ][ 1 ]
+[   ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+[   ][   ][ b ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+[   ][   ][   ][   ][   ][   ][   ][ # ][ 3 ][   ][   ][ 2 ]
+[   ][   ][   ][   ][   ][   ][   ][ # ][ # ][ # ][#,a][ # ]
+[   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ A ][   ]
+[   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
+[   ][   ][   ][   ][   ][   ][   ][ # ][ # ][ # ][#,b][ # ]
+[   ][   ][ B ][   ][   ][   ][   ][ # ][ 4 ][   ][   ][ 5 ]
+[   ][   ][ a ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+[   ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+[ 9 ][   ][   ][   ][   ][   ][   ][ # ][ 7 ][   ][   ][ 6 ]
+"""
+
 if __name__ == '__main__':
-    # test(env=TokenEnv())
+    # test(env=TokenEnv(is_circular=True, is_walled=True, collision_reward=-1e2))
     # test(env=DFABisimEnv())
-    test(env=DFAWrapper(env=TokenEnv()))
+    # test(env=DFAWrapper(env=TokenEnv(grid_shape=(4,7), n_token_repeat=1, n_agents=2, is_circular=False, is_walled=True)))
+    test(env=TokenEnv(layout=layout))
+    # env=TokenEnv(layout=layout)
+    # print(env.init_state)
+    # env.render(env.init_state)
+    # input()
 

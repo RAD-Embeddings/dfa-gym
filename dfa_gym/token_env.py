@@ -22,6 +22,8 @@ class TokenEnvState(State):
     agent_positions: jax.Array
     token_positions: jax.Array
     wall_positions: jax.Array
+    is_wall_disabled: jax.Array
+    button_positions: jax.Array
     is_alive: jax.Array
     time: int
 
@@ -38,10 +40,9 @@ class TokenEnv(MultiAgentEnv):
         collision_reward: int | None = None,
         black_death: bool = True,
         is_circular: bool = False,
-        is_walled: bool = False
+        layout: str | None = None
     ) -> None:
         super().__init__(num_agents=n_agents)
-        assert not is_walled or grid_shape[1] >= 3
         assert (grid_shape[0] * grid_shape[1]) >= (n_agents + n_tokens * n_token_repeat)
         self.n_agents = n_agents
         self.n_tokens = n_tokens
@@ -53,16 +54,21 @@ class TokenEnv(MultiAgentEnv):
         self.collision_reward = collision_reward
         self.black_death = black_death
         self.is_circular = is_circular
-        self.is_walled = is_walled
-
         self.agents = [f"agent_{i}" for i in range(self.n_agents)]
+        self.n_buttons = 0
+
+        self.init_state = None
+        if layout is not None:
+            self.init_state = self.parse(layout)
+
+        self.obs_shape = (1 + self.n_tokens + self.n_agents - 1 + self.n_buttons, *self.grid_shape)
 
         self.action_spaces = {
             agent: spaces.Discrete(len(ACTION_MAP))
             for agent in self.agents
         }
         self.observation_spaces = {
-            agent: spaces.Box(low=0, high=1, shape=(1 + self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
+            agent: spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8)
             for agent in self.agents
         }
 
@@ -71,57 +77,8 @@ class TokenEnv(MultiAgentEnv):
         self,
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], TokenEnvState]:
-        if self.fixed_map_seed is not None:
-            key = jax.random.PRNGKey(self.fixed_map_seed)
-
-        n_walls = (self.grid_shape[1] - 1) // 2
-        n_wall_cells = (self.grid_shape[0] - 1) * n_walls
-        wall_positions = jnp.full((n_wall_cells, 2), -1)
-        if self.is_walled:
-            def sample_wall_idx(key):
-                n_walls = (self.grid_shape[1] - 1) // 2
-                wall_freq = self.grid_shape[1] // n_walls
-
-                key, subkey = jax.random.split(key)
-                wall_mark = jax.random.randint(subkey, (), 2, wall_freq) - 1
-
-                wall_idx = wall_mark + wall_freq * jnp.arange(n_walls)
-                return wall_idx
-
-            key, subkey = jax.random.split(key)
-            wall_idx = sample_wall_idx(subkey)
-
-            door_idx = jax.random.randint(subkey, wall_idx.shape, 0, self.grid_shape[0])
-
-            is_wall_grid = jnp.zeros(self.grid_shape).at[:, wall_idx].set(1).at[door_idx, wall_idx].set(0)
-            _, flat_idx = jax.lax.top_k(is_wall_grid.flatten(), n_wall_cells)
-            wall_positions = jnp.stack(jnp.divmod(flat_idx, self.grid_shape[1]), axis=-1)
-
-        grid_points = jnp.stack(jnp.meshgrid(jnp.arange(self.grid_shape[0]), jnp.arange(self.grid_shape[1])), -1)
-        grid_flat = grid_points.reshape(-1, 2)
-
-        is_avail = jnp.all(
-            jnp.any(
-                grid_flat[:, None, :] != wall_positions[None, :, :] # [N, M, 2]
-            , axis=-1) # [N, M]
-        , axis=-1) # [N,]
-
-        key, subkey = jax.random.split(key)
-        perm = jax.random.permutation(subkey, grid_flat.shape[0])
-        idx = jnp.argsort(is_avail[perm], descending=True)
-        grid_flat_sorted = grid_flat[perm][idx]
-
-        agent_positions = grid_flat_sorted[:self.n_agents]
-        token_positions = grid_flat_sorted[self.n_agents: self.n_agents + self.n_tokens * self.n_token_repeat].reshape(self.n_tokens, self.n_token_repeat, 2)
-
-        state = TokenEnvState(
-            agent_positions=agent_positions,
-            token_positions=token_positions,
-            wall_positions=wall_positions,
-            is_alive=jnp.array([True for _ in jnp.arange(self.n_agents)]),
-            time=0
-        )
-
+        state = self.init_state
+        if state is None: state = self.sample_init_state(key)
         obs = self.get_obs(state=state)
         return obs, state
 
@@ -135,39 +92,33 @@ class TokenEnv(MultiAgentEnv):
 
         _actions = jnp.array([actions[agent] for agent in self.agents])
 
-        # No agents
-        def move_agent(pos, a, is_agent_alive, wall_positions):
+        # Move agents
+        def move_agent(pos, a):
             new_pos = pos + ACTION_MAP[a]
             new_pos_circ = new_pos % self.grid_shape_arr
-
-            if self.is_walled:
-                wall_col = jnp.any(
-                    jnp.all(
-                        new_pos[None, :] == wall_positions # [N, 2]
-                    , axis=-1) # [N,]
-                , axis=-1) # [1,]
-                new_pos = jnp.where(wall_col, pos, new_pos)
-                wall_col_circ = jnp.any(
-                    jnp.all(
-                        new_pos_circ[None, :] == wall_positions # [N, 2]
-                    , axis=-1) # [N,]
-                , axis=-1) # [1,]
-                new_pos_circ = jnp.where(wall_col_circ, pos, new_pos_circ)
-
             if self.is_circular:
-                return jnp.where(
-                    is_agent_alive,
-                    new_pos_circ,
-                    pos
-                )
+                new_pos_circ
             else:
                 return jnp.where(
-                    jnp.logical_and(is_agent_alive, jnp.all(new_pos == new_pos_circ)),
+                    jnp.all(new_pos == new_pos_circ),
                     new_pos,
                     pos
                 )
+        new_agent_pos = jax.vmap(move_agent, in_axes=(0, 0))(state.agent_positions, _actions)
+        new_agent_pos = jnp.where(state.is_alive[:, None], new_agent_pos, state.agent_positions)
 
-        new_agent_pos = jax.vmap(move_agent, in_axes=(0, 0, 0, None))(state.agent_positions, _actions, state.is_alive, state.wall_positions)
+        # Handle wall collisions
+        def compute_wall_collisions(pos, wall_positions, is_wall_disabled):
+            return jnp.any(
+                jnp.logical_and(
+                    jnp.logical_not(is_wall_disabled),
+                    jnp.all(
+                        pos[None, :] == wall_positions # [N, 2]
+                    , axis=-1), # [N,]
+                )
+            , axis=-1) # [1,]
+        wall_collisions = jax.vmap(compute_wall_collisions, in_axes=(0, None, None))(new_agent_pos, state.wall_positions, state.is_wall_disabled)
+        new_agent_pos = jnp.where(wall_collisions[:, None], state.agent_positions, new_agent_pos)
 
         # Handle collisions
         # TODO: When collision_reward is not None, there might be unintended behavior.
@@ -245,6 +196,8 @@ class TokenEnv(MultiAgentEnv):
             agent_positions=new_agent_pos,
             token_positions=state.token_positions,
             wall_positions=state.wall_positions,
+            is_wall_disabled=self.compute_disabled_walls(new_agent_pos, state.wall_positions, state.button_positions),
+            button_positions=state.button_positions,
             is_alive=jnp.logical_and(state.is_alive, jnp.logical_not(collisions)),
             time=state.time + 1
         )
@@ -265,25 +218,36 @@ class TokenEnv(MultiAgentEnv):
     ) -> Dict[str, chex.Array]:
 
         def obs_for_agent(i):
-            base = jnp.zeros((1 + self.n_tokens + self.n_agents - 1, *self.grid_shape), dtype=jnp.uint8)
-            offset = (self.grid_shape_arr // 2) - state.agent_positions[i]
+            base = jnp.zeros(self.obs_shape, dtype=jnp.uint8)
+            # ref = self.grid_shape_arr // 2
+            ref = jnp.array([0, 0])
+            offset = ref - state.agent_positions[i]
+            idx_offset = 0
 
             def place_wall(val):
                 rel = (state.wall_positions + offset) % self.grid_shape_arr
-                return val.at[0, rel[:, 0], rel[:, 1]].set(1)
+                return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(1)
             b0 = place_wall(base)
+            idx_offset += 1
 
             def place_token(token_idx, val):
                 rel = (state.token_positions[token_idx] + offset) % self.grid_shape_arr
-                return val.at[token_idx + 1, rel[:, 0], rel[:, 1]].set(1)
+                return val.at[idx_offset + token_idx, rel[:, 0], rel[:, 1]].set(1)
             b1 = jax.lax.fori_loop(0, self.n_tokens, place_token, b0)
+            idx_offset += self.n_tokens
 
             def place_other(other_idx, val):
                 rel = (state.agent_positions[other_idx + (other_idx >= i)] + offset) % self.grid_shape_arr
-                return val.at[self.n_tokens + other_idx + 1, rel[0], rel[1]].set(1)
+                return val.at[idx_offset + other_idx, rel[0], rel[1]].set(1)
             b2 = jax.lax.fori_loop(0, self.n_agents - 1, place_other, b1)
+            idx_offset += self.n_agents - 1
 
-            return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b2, base)
+            def place_button(button_idx, val):
+                rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
+                return val.at[idx_offset + button_idx, rel[:, 0], rel[:, 1]].set(1)
+            b3 = jax.lax.fori_loop(0, self.n_buttons, place_button, b2)
+
+            return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b3, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
         return {agent: obs[i] for i, agent in enumerate(self.agents)}
@@ -302,17 +266,252 @@ class TokenEnv(MultiAgentEnv):
 
         return {self.agents[agent_idx]: token_idx for agent_idx, token_idx in enumerate(agent_token_matches)}
 
+    @partial(jax.jit, static_argnums=(0,))
+    def sample_init_state(
+        self,
+        key: chex.PRNGKey
+    ) -> Tuple[Dict[str, chex.Array], TokenEnvState]:
+        if self.fixed_map_seed is not None:
+            key = jax.random.PRNGKey(self.fixed_map_seed)
+
+        grid_points = jnp.stack(jnp.meshgrid(jnp.arange(self.grid_shape[0]), jnp.arange(self.grid_shape[1])), -1)
+        grid_flat = grid_points.reshape(-1, 2)
+
+        key, subkey = jax.random.split(key)
+        perm = jax.random.permutation(subkey, grid_flat.shape[0])
+
+        agent_positions = grid_flat[perm][:self.n_agents]
+        token_positions = grid_flat[perm][self.n_agents: self.n_agents + self.n_tokens * self.n_token_repeat].reshape(self.n_tokens, self.n_token_repeat, 2)
+
+        return TokenEnvState(
+            agent_positions=agent_positions,
+            token_positions=token_positions,
+            wall_positions=jnp.empty((0, 2), dtype=jnp.int32),
+            is_wall_disabled=jnp.empty((0, 2), dtype=bool),
+            button_positions=jnp.empty((0, 2), dtype=jnp.int32),
+            is_alive=jnp.array([True for _ in jnp.arange(self.n_agents)]),
+            time=0
+        )
+
+    @partial(jax.jit, static_argnums=(0,))
+    def compute_disabled_walls(self, agent_positions, wall_positions, button_positions):
+        def _compute_on_buttons(button_pos, agent_positions):
+            return jnp.any(
+                jnp.any(
+                    jnp.all(
+                        button_pos[:, None, :] == agent_positions[None, :, :] # [M, N, 2]
+                    , axis=-1) # [M, N,]
+                , axis=-1) # [M,]
+            , axis=-1) # [1,]
+        on_buttons = jax.vmap(_compute_on_buttons, in_axes=(0, None))(button_positions, agent_positions)
+        def _compute_disabled_walls(wall_pos, on_buttons, button_positions):
+            # Compare each wall_pos to each button coordinate
+            eq = jnp.all(button_positions == wall_pos, axis=-1)  # (n_buttons, n_button_repeat)
+            # A wall is disabled if *any* matching button is pressed
+            return jnp.any(jnp.logical_and(on_buttons, jnp.any(eq, axis=-1)))
+        return jax.vmap(_compute_disabled_walls, in_axes=(0, None, None))(wall_positions, on_buttons, button_positions)
+
+    def parse(self, layout: str) -> TokenEnvState:
+        # Example layout:
+        # [ 8 ][   ][   ][   ][   ][   ][   ][ # ][ 0 ][   ][   ][ 1 ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+        # [   ][   ][ b ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][ 3 ][   ][   ][ 2 ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][ # ][ # ][#,a][ # ]
+        # [ A ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
+        # [ B ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][ # ][ # ][#,b][ # ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][ 4 ][   ][   ][ 5 ]
+        # [   ][   ][ a ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+        # [   ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][   ]
+        # [ 9 ][   ][   ][   ][   ][   ][   ][ # ][ 7 ][   ][   ][ 6 ]
+        # where each [] indicates a cell, uppercase letters indicate agents,
+        # e.g., A and B, and lower case letters indicate "sync" points which
+        # are more like doors and buttons that open the doors, eg [#|a] is a
+        # door that is open if there is an agent on the cell [ a ] and closed;
+        # otherwise, and cells with # indicate walls.
+
+        # --- parse into a 2D list of cell contents (strings inside brackets) ---
+        lines = [ln.strip() for ln in layout.strip().splitlines() if ln.strip()]
+        rows: list[list[str]] = []
+
+        for ln in lines:
+            cells = []
+            i = 0
+            while i < len(ln):
+                if ln[i] == "[":
+                    j = ln.find("]", i + 1)
+                    if j == -1:
+                        raise ValueError("Malformed layout: missing closing ']' in a row.")
+                    cells.append(ln[i + 1:j].strip())
+                    i = j + 1
+                else:
+                    i += 1
+            if cells:
+                rows.append(cells)
+
+        if not rows:
+            raise ValueError("Parsed layout is empty.")
+
+        H = len(rows)
+        W = len(rows[0])
+        if any(len(r) != W for r in rows):
+            raise ValueError("All rows in the layout must have the same number of cells.")
+
+        # --- collect info ---
+        wall_positions: list[tuple[int, int]] = []
+        agent_positions: dict[int, tuple[int, int]] = {}
+        token_positions: dict[int, list[tuple[int, int]]] = {}
+        button_positions: dict[int, list[tuple[int, int]]] = {}
+        max_token_id = -1
+        max_button_id = -1
+
+        def _is_wall(c: str) -> bool:
+            return "#" == c
+
+        def _is_agent(c: str) -> bool:
+            is_agent_in_cell = [
+                a == c
+                for a in [chr(ord("A") + i) for i in range(ord("Z") - ord("A") + 1)]
+            ]
+            return sum(is_agent_in_cell) > 0
+
+        def _get_agent_idx(c: str) -> bool:
+            is_agent_in_cell = [
+                a == c
+                for a in [chr(ord("A") + i) for i in range(ord("Z") - ord("A") + 1)]
+            ]
+            return np.argmax(is_agent_in_cell)
+
+        def _is_token(c: str) -> bool:
+            try:
+                int(c)
+                return True
+            except ValueError:
+                return False
+
+        def _is_button(c: str) -> bool:
+            is_button_in_cell = [
+                a == c
+                for a in [chr(ord("a") + i) for i in range(ord("z") - ord("a") + 1)]
+            ]
+            return sum(is_button_in_cell) > 0
+
+        def _get_button_idx(c: str) -> bool:
+            is_button_in_cell = [
+                a == c
+                for a in [chr(ord("a") + i) for i in range(ord("z") - ord("a") + 1)]
+            ]
+            return np.argmax(is_button_in_cell)
+
+        for r in range(H):
+            for c in range(W):
+                cell = rows[r][c]
+                has_wall = False
+                has_agent = False
+                has_token = False
+                has_button = False
+                for content in cell.split(","):
+
+                    if _is_wall(content):
+                        if has_wall:
+                            raise ValueError(f"One wall per cell.")
+                        has_wall = True
+                        wall_positions.append((r, c))
+
+                    if _is_agent(content):
+                        if has_agent:
+                            raise ValueError(f"One agent per cell.")
+                        has_agent = True
+                        idx = _get_agent_idx(content)
+                        if idx in agent_positions:
+                            raise ValueError(f"Duplicate placement for agent '{content}'.")
+                        agent_positions[idx] = (r, c)
+
+                    if _is_token(content):
+                        if has_token:
+                            raise ValueError(f"One token per cell.")
+                        has_token = True
+                        tok_id = int(content)
+                        max_token_id = max(max_token_id, tok_id)
+                        token_positions.setdefault(tok_id, []).append((r, c))
+
+                    if _is_button(content):
+                        if has_button:
+                            raise ValueError(f"One button per cell.")
+                        has_button = True
+                        idx = _get_button_idx(content)
+                        max_button_id = max(max_button_id, idx)
+                        button_positions.setdefault(idx, []).append((r, c))
+
+                assert not (has_wall and has_agent)
+                assert not (has_wall and has_token)
+                assert not (has_token and has_button)
+
+        # --- override environment settings ---
+        self.grid_shape = (H, W)
+        self.grid_shape_arr = jnp.array(self.grid_shape)
+
+        self.n_agents = len(agent_positions)
+        self.agents = [f"agent_{i}" for i in range(self.n_agents)]
+
+        self.n_tokens = max_token_id + 1 if max_token_id >= 0 else 0
+        self.n_token_repeat = max((len(v) for v in token_positions.values()), default=0)
+        token_positions_np = np.full((self.n_tokens, self.n_token_repeat, 2), -1, dtype=np.int32)
+        for tid in range(self.n_tokens):
+            coords = token_positions.get(tid, [])
+            for k, (r, c) in enumerate(coords[: self.n_token_repeat]):
+                token_positions_np[tid, k] = (r, c)
+
+        agent_positions_np = np.full((self.n_agents, 2), -1, dtype=np.int32)
+        for idx, pos in agent_positions.items():
+            agent_positions_np[idx] = pos
+
+        wall_positions_np = np.array(wall_positions, dtype=np.int32) if wall_positions else np.empty((0, 2), dtype=np.int32)
+
+        self.n_buttons = max_button_id + 1 if max_button_id >= 0 else 0
+        self.n_button_repeat = max((len(v) for v in button_positions.values()), default=0)
+        button_positions_np = np.full((self.n_buttons, self.n_button_repeat, 2), -1, dtype=np.int32)
+        for bid in range(self.n_buttons):
+            coords = button_positions.get(bid, [])
+            for k, (r, c) in enumerate(coords[: self.n_button_repeat]):
+                button_positions_np[bid, k] = (r, c)
+
+        agent_positions_jnp = jnp.array(agent_positions_np)
+        wall_positions_jnp = jnp.array(wall_positions_np)
+        button_positions_jnp = jnp.array(button_positions_np)
+
+        # --- return state ---
+        return TokenEnvState(
+            agent_positions=agent_positions_jnp,
+            token_positions=jnp.array(token_positions_np),
+            wall_positions=wall_positions_jnp,
+            is_wall_disabled=self.compute_disabled_walls(agent_positions_jnp, wall_positions_jnp, button_positions_jnp),
+            button_positions=button_positions_jnp,
+            is_alive=jnp.ones((self.n_agents,), dtype=bool),
+            time=0,
+        )
+
     def render(self, state: TokenEnvState):
         empty_cell = "."
         wall_cell = "#"
         grid = np.full(self.grid_shape, empty_cell, dtype=object)
 
-        for pos in state.wall_positions:
-            grid[pos[0], pos[1]] = f"{wall_cell}"
+        for disabled, pos in zip(state.is_wall_disabled, state.wall_positions):
+            if not disabled:
+                grid[pos[0], pos[1]] = f"{wall_cell}"
 
         for token, positions in enumerate(state.token_positions):
             for pos in positions:
                 grid[pos[0], pos[1]] = f"{token}"
+
+        for button, positions in enumerate(state.button_positions):
+            for pos in positions:
+                current = grid[pos[0], pos[1]]
+                if current == empty_cell:
+                    grid[pos[0], pos[1]] = f"b_{button}"
+                else:
+                    grid[pos[0], pos[1]] = f"{current},b_{button}"
 
         for agent in range(self.n_agents):
             pos = state.agent_positions[agent]
