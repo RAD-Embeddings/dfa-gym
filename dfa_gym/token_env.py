@@ -103,7 +103,7 @@ class TokenEnv(MultiAgentEnv):
             new_pos = pos + ACTION_MAP[a]
             new_pos_circ = new_pos % self.grid_shape_arr
             if self.is_circular:
-                new_pos_circ
+                return new_pos_circ
             else:
                 return jnp.where(
                     jnp.all(new_pos == new_pos_circ),
