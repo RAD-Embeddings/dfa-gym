@@ -199,11 +199,15 @@ class TokenEnv(MultiAgentEnv):
             _rewards = jnp.where(jnp.logical_and(state.is_alive, collisions), self.collision_reward, _rewards)
         rewards = {agent: _rewards[i] for i, agent in enumerate(self.agents)}
 
+        is_wall_disabled = jnp.empty((0, 2), dtype=bool)
+        if self.init_state is not None:
+            is_wall_disabled = self.compute_disabled_walls(new_agent_pos, state.wall_positions, state.button_positions)
+
         new_state = TokenEnvState(
             agent_positions=new_agent_pos,
             token_positions=state.token_positions,
             wall_positions=state.wall_positions,
-            is_wall_disabled=self.compute_disabled_walls(new_agent_pos, state.wall_positions, state.button_positions),
+            is_wall_disabled=is_wall_disabled,
             button_positions=state.button_positions,
             is_alive=jnp.logical_and(state.is_alive, jnp.logical_not(collisions)),
             time=state.time + 1
@@ -307,8 +311,6 @@ class TokenEnv(MultiAgentEnv):
 
     @partial(jax.jit, static_argnums=(0,))
     def compute_disabled_walls(self, agent_positions, wall_positions, button_positions):
-        if self.init_state is None:
-            return jnp.empty((0, 2), dtype=bool)
         def _compute_on_buttons(button_pos, agent_positions):
             return jnp.any(
                 jnp.any(
