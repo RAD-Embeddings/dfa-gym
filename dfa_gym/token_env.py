@@ -62,7 +62,11 @@ class TokenEnv(MultiAgentEnv):
             self.init_state = self.parse(layout)
         self.num_agents = self.n_agents
 
-        self.obs_shape = (1 + self.n_tokens + self.n_agents - 1 + self.n_buttons, *self.grid_shape)
+        self.obs_shape = 0
+        if self.init_state is not None: self.obs_shape += 1
+        if self.n_tokens > 0: self.obs_shape += self.n_tokens
+        if self.n_agents > 1: self.obs_shape += self.n_agents - 1
+        if self.n_buttons > 0: self.obs_shape += self.n_buttons
 
         self.action_spaces = {
             agent: spaces.Discrete(len(ACTION_MAP))
@@ -224,31 +228,36 @@ class TokenEnv(MultiAgentEnv):
             ref = jnp.array([0, 0])
             offset = ref - state.agent_positions[i]
             idx_offset = 0
+            b = base
 
-            def place_wall(val):
-                rel = (state.wall_positions + offset) % self.grid_shape_arr
-                return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(1)
-            b0 = place_wall(base)
-            idx_offset += 1
+            if self.init_state is not None:
+                def place_wall(val):
+                    rel = (state.wall_positions + offset) % self.grid_shape_arr
+                    return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(1)
+                b = place_wall(b)
+                idx_offset += 1
 
-            def place_token(token_idx, val):
-                rel = (state.token_positions[token_idx] + offset) % self.grid_shape_arr
-                return val.at[idx_offset + token_idx, rel[:, 0], rel[:, 1]].set(1)
-            b1 = jax.lax.fori_loop(0, self.n_tokens, place_token, b0)
-            idx_offset += self.n_tokens
+            if self.n_tokens > 0:
+                def place_token(token_idx, val):
+                    rel = (state.token_positions[token_idx] + offset) % self.grid_shape_arr
+                    return val.at[idx_offset + token_idx, rel[:, 0], rel[:, 1]].set(1)
+                b = jax.lax.fori_loop(0, self.n_tokens, place_token, b)
+                idx_offset += self.n_tokens
 
-            def place_other(other_idx, val):
-                rel = (state.agent_positions[other_idx + (other_idx >= i)] + offset) % self.grid_shape_arr
-                return val.at[idx_offset + other_idx, rel[0], rel[1]].set(1)
-            b2 = jax.lax.fori_loop(0, self.n_agents - 1, place_other, b1)
-            idx_offset += self.n_agents - 1
+            if self.n_agents > 1:
+                def place_other(other_idx, val):
+                    rel = (state.agent_positions[other_idx + (other_idx >= i)] + offset) % self.grid_shape_arr
+                    return val.at[idx_offset + other_idx, rel[0], rel[1]].set(1)
+                b = jax.lax.fori_loop(0, self.n_agents - 1, place_other, b)
+                idx_offset += self.n_agents - 1
 
-            def place_button(button_idx, val):
-                rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
-                return val.at[idx_offset + button_idx, rel[:, 0], rel[:, 1]].set(1)
-            b3 = jax.lax.fori_loop(0, self.n_buttons, place_button, b2)
+            if self.n_buttons > 0:
+                def place_button(button_idx, val):
+                    rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
+                    return val.at[idx_offset + button_idx, rel[:, 0], rel[:, 1]].set(1)
+                b = jax.lax.fori_loop(0, self.n_buttons, place_button, b)
 
-            return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b3, base)
+            return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
         return {agent: obs[i] for i, agent in enumerate(self.agents)}
