@@ -60,6 +60,7 @@ class TokenEnv(MultiAgentEnv):
         self.init_state = None
         if layout is not None:
             self.init_state = self.parse(layout)
+        self.num_agents = self.n_agents
 
         self.obs_shape = (1 + self.n_tokens + self.n_agents - 1 + self.n_buttons, *self.grid_shape)
 
