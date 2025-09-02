@@ -113,18 +113,19 @@ class TokenEnv(MultiAgentEnv):
         new_agent_pos = jax.vmap(move_agent, in_axes=(0, 0))(state.agent_positions, _actions)
         new_agent_pos = jnp.where(state.is_alive[:, None], new_agent_pos, state.agent_positions)
 
-        # Handle wall collisions
-        def compute_wall_collisions(pos, wall_positions, is_wall_disabled):
-            return jnp.any(
-                jnp.logical_and(
-                    jnp.logical_not(is_wall_disabled),
-                    jnp.all(
-                        pos[None, :] == wall_positions # [N, 2]
-                    , axis=-1), # [N,]
-                )
-            , axis=-1) # [1,]
-        wall_collisions = jax.vmap(compute_wall_collisions, in_axes=(0, None, None))(new_agent_pos, state.wall_positions, state.is_wall_disabled)
-        new_agent_pos = jnp.where(wall_collisions[:, None], state.agent_positions, new_agent_pos)
+        if self.init_state is not None:
+            # Handle wall collisions
+            def compute_wall_collisions(pos, wall_positions, is_wall_disabled):
+                return jnp.any(
+                    jnp.logical_and(
+                        jnp.logical_not(is_wall_disabled),
+                        jnp.all(
+                            pos[None, :] == wall_positions # [N, 2]
+                        , axis=-1), # [N,]
+                    )
+                , axis=-1) # [1,]
+            wall_collisions = jax.vmap(compute_wall_collisions, in_axes=(0, None, None))(new_agent_pos, state.wall_positions, state.is_wall_disabled)
+            new_agent_pos = jnp.where(wall_collisions[:, None], state.agent_positions, new_agent_pos)
 
         # Handle collisions
         # TODO: When collision_reward is not None, there might be unintended behavior.
@@ -306,6 +307,8 @@ class TokenEnv(MultiAgentEnv):
 
     @partial(jax.jit, static_argnums=(0,))
     def compute_disabled_walls(self, agent_positions, wall_positions, button_positions):
+        if self.init_state is None:
+            return jnp.empty((0, 2), dtype=bool)
         def _compute_on_buttons(button_pos, agent_positions):
             return jnp.any(
                 jnp.any(
