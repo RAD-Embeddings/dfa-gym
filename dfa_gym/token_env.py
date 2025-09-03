@@ -3,19 +3,29 @@ import chex
 import numpy as np
 import jax.numpy as jnp
 from flax import struct
+from enum import IntEnum
 from functools import partial
 from typing import Tuple, Dict
 from dfa_gym import spaces
 from dfa_gym.env import MultiAgentEnv, State
 
 
+class Action(IntEnum):
+    DOWN  = 0
+    RIGHT = 1
+    UP    = 2
+    LEFT  = 3
+    NOOP  = 4
+    HELP  = 5
+
 ACTION_MAP = jnp.array([
     [ 1,  0], # DOWN
     [ 0,  1], # RIGHT
     [-1,  0], # UP
     [ 0, -1], # LEFT
-    [ 0,  0]] # NOOP
-)
+    [ 0,  0], # NOOP
+    [ 0,  0]  # HELP
+])
 
 @struct.dataclass
 class TokenEnvState(State):
@@ -25,6 +35,7 @@ class TokenEnvState(State):
     is_wall_disabled: jax.Array
     button_positions: jax.Array
     is_alive: jax.Array
+    asked_for_help: jax.Array
     time: int
 
 class TokenEnv(MultiAgentEnv):
@@ -74,7 +85,10 @@ class TokenEnv(MultiAgentEnv):
             for agent in self.agents
         }
         self.observation_spaces = {
-            agent: spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8)
+            agent: spaces.Dict({
+                "obs": spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8),
+                "help": spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=jnp.uint8)
+            })
             for agent in self.agents
         }
 
@@ -210,6 +224,7 @@ class TokenEnv(MultiAgentEnv):
             is_wall_disabled=is_wall_disabled,
             button_positions=state.button_positions,
             is_alive=jnp.logical_and(state.is_alive, jnp.logical_not(collisions)),
+            asked_for_help=(_actions == Action.HELP),
             time=state.time + 1
         )
 
@@ -273,7 +288,7 @@ class TokenEnv(MultiAgentEnv):
             return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
-        return {agent: obs[i] for i, agent in enumerate(self.agents)}
+        return {agent: {"obs": obs[i], "help": state.asked_for_help.astype(jnp.uint8)} for i, agent in enumerate(self.agents)}
 
     @partial(jax.jit, static_argnums=(0,))
     def label_f(self, state: TokenEnvState) -> Dict[str, int]:
@@ -312,7 +327,8 @@ class TokenEnv(MultiAgentEnv):
             wall_positions=jnp.empty((0, 2), dtype=jnp.int32),
             is_wall_disabled=jnp.empty((0, 2), dtype=bool),
             button_positions=jnp.empty((0, 2), dtype=jnp.int32),
-            is_alive=jnp.array([True for _ in jnp.arange(self.n_agents)]),
+            is_alive=jnp.ones((self.n_agents,), dtype=bool),
+            asked_for_help=jnp.zeros((self.n_agents,), dtype=bool),
             time=0
         )
 
@@ -512,6 +528,7 @@ class TokenEnv(MultiAgentEnv):
             is_wall_disabled=self.compute_disabled_walls(agent_positions_jnp, wall_positions_jnp, button_positions_jnp),
             button_positions=button_positions_jnp,
             is_alive=jnp.ones((self.n_agents,), dtype=bool),
+            asked_for_help=jnp.zeros((self.n_agents,), dtype=bool),
             time=0,
         )
 
