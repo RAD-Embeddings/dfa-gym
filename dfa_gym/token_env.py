@@ -16,7 +16,6 @@ class Action(IntEnum):
     UP    = 2
     LEFT  = 3
     NOOP  = 4
-    HELP  = 5
 
 ACTION_MAP = jnp.array([
     [ 1,  0], # DOWN
@@ -24,7 +23,6 @@ ACTION_MAP = jnp.array([
     [-1,  0], # UP
     [ 0, -1], # LEFT
     [ 0,  0], # NOOP
-    [ 0,  0]  # HELP
 ])
 
 @struct.dataclass
@@ -35,7 +33,6 @@ class TokenEnvState(State):
     is_wall_disabled: jax.Array
     button_positions: jax.Array
     is_alive: jax.Array
-    asked_for_help: jax.Array
     time: int
 
 class TokenEnv(MultiAgentEnv):
@@ -77,7 +74,7 @@ class TokenEnv(MultiAgentEnv):
         if self.init_state is not None: channel_dim += 1
         if self.n_tokens > 0: channel_dim += self.n_tokens
         if self.n_agents > 1: channel_dim += self.n_agents - 1
-        if self.n_buttons > 0: channel_dim += self.n_buttons
+        if self.n_buttons > 0: channel_dim += 2 * self.n_buttons
         self.obs_shape = (channel_dim, *self.grid_shape)
 
         self.action_spaces = {
@@ -85,10 +82,7 @@ class TokenEnv(MultiAgentEnv):
             for agent in self.agents
         }
         self.observation_spaces = {
-            agent: spaces.Dict({
-                "obs": spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8),
-                "help": spaces.Box(low=0, high=1, shape=(self.n_agents,), dtype=jnp.uint8)
-            })
+            agent: spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8)
             for agent in self.agents
         }
 
@@ -224,7 +218,6 @@ class TokenEnv(MultiAgentEnv):
             is_wall_disabled=is_wall_disabled,
             button_positions=state.button_positions,
             is_alive=jnp.logical_and(state.is_alive, jnp.logical_not(collisions)),
-            asked_for_help=(_actions == Action.HELP),
             time=state.time + 1
         )
 
@@ -274,20 +267,24 @@ class TokenEnv(MultiAgentEnv):
 
             if self.n_buttons > 0:
                 def place_button(button_idx, val):
-                    # is_button_in_wall = jnp.any(
-                    #     jnp.all(
-                    #         state.button_positions[button_idx][:, None, :] == state.wall_positions[None, :, :]
-                    #     , axis=-1)
-                    # , axis=-1)
+                    is_door = jnp.any(
+                        jnp.all(
+                            state.button_positions[button_idx][:, None, :] == state.wall_positions[None, :, :]
+                        , axis=-1)
+                    , axis=-1) # Buttons are considered walls if they are in a wall.
                     rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
-                    return val.at[idx_offset + button_idx, rel[:, 0], rel[:, 1]].set(1)
+                    return val.at[
+                        idx_offset + 2 * button_idx, rel[:, 0], rel[:, 1]
+                    ].set(jnp.logical_not(is_door).astype(jnp.uint8)).at[
+                        idx_offset + 2 * button_idx + 1, rel[:, 0], rel[:, 1]
+                    ].set(is_door.astype(jnp.uint8))
 
                 b = jax.lax.fori_loop(0, self.n_buttons, place_button, b)
 
             return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
-        return {agent: {"obs": obs[i], "help": state.asked_for_help.at[i].set(False).astype(jnp.uint8)} for i, agent in enumerate(self.agents)}
+        return {agent: obs[i] for i, agent in enumerate(self.agents)}
 
     @partial(jax.jit, static_argnums=(0,))
     def label_f(self, state: TokenEnvState) -> Dict[str, int]:
@@ -327,7 +324,6 @@ class TokenEnv(MultiAgentEnv):
             is_wall_disabled=jnp.empty((0, 2), dtype=bool),
             button_positions=jnp.empty((0, 2), dtype=jnp.int32),
             is_alive=jnp.ones((self.n_agents,), dtype=bool),
-            asked_for_help=jnp.zeros((self.n_agents,), dtype=bool),
             time=0
         )
 
@@ -527,7 +523,6 @@ class TokenEnv(MultiAgentEnv):
             is_wall_disabled=self.compute_disabled_walls(agent_positions_jnp, wall_positions_jnp, button_positions_jnp),
             button_positions=button_positions_jnp,
             is_alive=jnp.ones((self.n_agents,), dtype=bool),
-            asked_for_help=jnp.zeros((self.n_agents,), dtype=bool),
             time=0,
         )
 
