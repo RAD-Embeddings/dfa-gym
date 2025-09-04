@@ -288,7 +288,7 @@ class TokenEnv(MultiAgentEnv):
             return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
-        return {agent: {"obs": obs[i], "help": state.asked_for_help.astype(jnp.uint8)} for i, agent in enumerate(self.agents)}
+        return {agent: {"obs": obs[i], "help": state.asked_for_help.at[i].set(False).astype(jnp.uint8)} for i, agent in enumerate(self.agents)}
 
     @partial(jax.jit, static_argnums=(0,))
     def label_f(self, state: TokenEnvState) -> Dict[str, int]:
