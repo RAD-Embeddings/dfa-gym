@@ -77,7 +77,7 @@ class TokenEnv(MultiAgentEnv):
         if self.init_state is not None: channel_dim += 1
         if self.n_tokens > 0: channel_dim += self.n_tokens
         if self.n_agents > 1: channel_dim += self.n_agents - 1
-        if self.n_buttons > 0: channel_dim += 2 * self.n_buttons
+        if self.n_buttons > 0: channel_dim += self.n_buttons
         self.obs_shape = (channel_dim, *self.grid_shape)
 
         self.action_spaces = {
@@ -274,17 +274,13 @@ class TokenEnv(MultiAgentEnv):
 
             if self.n_buttons > 0:
                 def place_button(button_idx, val):
-                    is_button_in_wall = jnp.any(
-                        jnp.all(
-                            state.button_positions[button_idx][:, None, :] == state.wall_positions[None, :, :]
-                        , axis=-1)
-                    , axis=-1)
+                    # is_button_in_wall = jnp.any(
+                    #     jnp.all(
+                    #         state.button_positions[button_idx][:, None, :] == state.wall_positions[None, :, :]
+                    #     , axis=-1)
+                    # , axis=-1)
                     rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
-                    return val.at[
-                        idx_offset + 2 * button_idx, rel[:, 0], rel[:, 1]
-                    ].set(jnp.logical_not(is_button_in_wall).astype(jnp.uint8)).at[
-                        idx_offset + 2 * button_idx + 1, rel[:, 0], rel[:, 1]
-                    ].set(is_button_in_wall.astype(jnp.uint8))
+                    return val.at[idx_offset + button_idx, rel[:, 0], rel[:, 1]].set(1)
 
                 b = jax.lax.fori_loop(0, self.n_buttons, place_button, b)
 

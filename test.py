@@ -27,11 +27,12 @@ def test(env):
             env.render(state)
             # print(obs)
             jax.numpy.set_printoptions(threshold=10000)
-            for i in obs:
-                print(i)
-                print(obs[i])
-                print(obs[i].shape)
-            print(env.label_f(state))
+            print(obs)
+            # for i in obs:
+            #     print(i)
+            #     print(obs[i])
+            #     print(obs[i].shape)
+            print("Label:", env.label_f(state))
             print(rewards)
             print(dones)
             # print(actions)
@@ -74,18 +75,34 @@ def test(env):
 # [ 9 ][   ][   ][   ][   ][   ][   ][ # ][ 7 ][   ][   ][ 6 ]
 # """
 
+# layout = """
+#     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+#     [ # ][ 8 ][   ][   ][   ][   ][   ][ # ][ 0 ][   ][ 1 ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+#     [ # ][   ][ b ][   ][   ][   ][   ][ # ][ 3 ][   ][ 2 ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][ # ][ # ][#,a][ # ][ # ]
+#     [ # ][ A ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
+#     [ # ][ B ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][ # ][ # ][#,b][ # ][ # ]
+#     [ # ][   ][ a ][   ][   ][   ][   ][ # ][ 4 ][   ][ 5 ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+#     [ # ][ 9 ][   ][   ][   ][   ][   ][ # ][ 7 ][   ][ 6 ][ # ]
+#     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+# """
+
+
 layout = """
     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
-    [ # ][ 8 ][   ][   ][   ][   ][   ][ # ][ 0 ][   ][ 1 ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][ # ]
-    [ # ][   ][ b ][   ][   ][   ][   ][ # ][ 3 ][   ][ 2 ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][ # ][ # ][#,a][ # ][ # ]
+    [ # ][   ][   ][   ][   ][   ][   ][#,a][ 0 ][   ][ 1 ][ # ]
+    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][   ][ 4 ][   ][ # ]
+    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][ 3 ][   ][ 2 ][ # ]
+    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][#,a][#,a][#,a][ # ]
     [ # ][ A ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
     [ # ][ B ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][ # ][ # ][#,b][ # ][ # ]
-    [ # ][   ][ a ][   ][   ][   ][   ][ # ][ 4 ][   ][ 5 ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][ # ][   ][   ][   ][ # ]
-    [ # ][ 9 ][   ][   ][   ][   ][   ][ # ][ 7 ][   ][ 6 ][ # ]
+    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][#,b][#,b][#,b][ # ]
+    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][ 5 ][   ][ 6 ][ # ]
+    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][   ][ 9 ][   ][ # ]
+    [ # ][   ][   ][   ][   ][   ][   ][#,b][ 8 ][   ][ 7 ][ # ]
     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
 """
 
@@ -93,7 +110,7 @@ if __name__ == '__main__':
     # test(env=TokenEnv(is_circular=True, is_walled=True, collision_reward=-1e2))
     # test(env=DFABisimEnv())
     # test(env=DFAWrapper(env=TokenEnv(grid_shape=(4,7), n_token_repeat=1, n_agents=2, is_circular=False, is_walled=True)))
-    test(env=TokenEnv(layout=layout))
+    test(env=TokenEnv(layout=layout, max_steps_in_episode=200))
     # env=TokenEnv(layout=layout)
     # print(env.init_state)
     # env.render(env.init_state)
