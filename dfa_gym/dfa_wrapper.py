@@ -24,12 +24,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        max_eoe_reward: float = 1e-1
+        max_coop_reward: float = 1e-1
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.eoe_reward_ratio = 0 if self.num_agents == 1 else max_eoe_reward / (self.num_agents - 1)
+        self.coop_reward_ratio = 0 if self.num_agents == 1 else max_coop_reward / (self.num_agents - 1)
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -140,13 +140,14 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
-        dfa_dones = {
-            agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
+        dfa_rewards_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
+        rewards = {
+            agent: env_rewards[agent] + dfa_rewards[agent] + self.coop_reward_ratio * (dfa_rewards_sum - dfa_rewards[agent])
             for agent in self.agents
         }
 
-        rewards = {
-            agent: env_rewards[agent] + dfa_rewards[agent]
+        dfa_dones = {
+            agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
             for agent in self.agents
         }
 
@@ -156,17 +157,6 @@ class DFAWrapper(MultiAgentEnv):
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
-
-        dfa_rewards_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
-        rewards = {
-            agent: jax.lax.cond(
-                dones["__all__"],
-                lambda _: rewards[agent] + self.eoe_reward_ratio * (dfa_rewards_sum - dfas[agent].reward()),
-                lambda _: rewards[agent],
-                operand=None
-            )
-            for agent in self.agents
-        }
 
         infos = {}
 
