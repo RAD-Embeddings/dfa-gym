@@ -24,12 +24,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        self_reward_ratio: float = 1e-1
+        self_reward_ratio: float | None = None
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.self_reward_ratio = self_reward_ratio
+        self.self_reward_ratio = self_reward_ratio if self_reward_ratio is not None else 1 / self.num_agents
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
