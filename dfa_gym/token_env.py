@@ -70,8 +70,8 @@ class TokenEnv(MultiAgentEnv):
             self.init_state = self.parse(layout)
         self.num_agents = self.n_agents
 
-        channel_dim = 0
-        if self.init_state is not None: channel_dim += 1
+        channel_dim = 1
+        if self.init_state is not None: channel_dim += 2
         if self.n_tokens > 0: channel_dim += self.n_tokens
         if self.n_agents > 1: channel_dim += self.n_agents - 1
         if self.n_buttons > 0: channel_dim += 3 * self.n_buttons
@@ -244,24 +244,34 @@ class TokenEnv(MultiAgentEnv):
             idx_offset = 0
             b = base
 
+            def place_agent(val):
+                rel = (state.agent_positions[i] + offset) % self.grid_shape_arr
+                return val.at[idx_offset, rel[0], rel[1]].set(1) # Is agent?
+            b = place_agent(b)
+            idx_offset += 1
+
             if self.init_state is not None:
                 def place_wall(val):
                     rel = (state.wall_positions + offset) % self.grid_shape_arr
-                    return val.at[idx_offset, rel[:, 0], rel[:, 1]].set(jnp.logical_not(state.is_wall_disabled).astype(jnp.uint8))
+                    return val.at[
+                        idx_offset, rel[:, 0], rel[:, 1]
+                    ].set(1).at[ # Is wall?
+                        idx_offset + 1, rel[:, 0], rel[:, 1]
+                    ].set(jnp.logical_not(state.is_wall_disabled).astype(jnp.uint8)) # Is wall blocking?
                 b = place_wall(b)
-                idx_offset += 1
+                idx_offset += 2
 
             if self.n_tokens > 0:
                 def place_token(token_idx, val):
                     rel = (state.token_positions[token_idx] + offset) % self.grid_shape_arr
-                    return val.at[idx_offset + token_idx, rel[:, 0], rel[:, 1]].set(1)
+                    return val.at[idx_offset + token_idx, rel[:, 0], rel[:, 1]].set(1) # Is token?
                 b = jax.lax.fori_loop(0, self.n_tokens, place_token, b)
                 idx_offset += self.n_tokens
 
             if self.n_agents > 1:
                 def place_other(other_idx, val):
                     rel = (state.agent_positions[other_idx + (other_idx >= i)] + offset) % self.grid_shape_arr
-                    return val.at[idx_offset + other_idx, rel[0], rel[1]].set(1)
+                    return val.at[idx_offset + other_idx, rel[0], rel[1]].set(1) # Is other agent?
                 b = jax.lax.fori_loop(0, self.n_agents - 1, place_other, b)
                 idx_offset += self.n_agents - 1
 
@@ -275,11 +285,11 @@ class TokenEnv(MultiAgentEnv):
                     rel = (state.button_positions[button_idx] + offset) % self.grid_shape_arr
                     return val.at[
                         idx_offset + 3 * button_idx, rel[:, 0], rel[:, 1]
-                    ].set(1).at[
+                    ].set(1).at[ # Is button-door pair?
                         idx_offset + 3 * button_idx + 1, rel[:, 0], rel[:, 1]
-                    ].set(jnp.logical_not(is_door).astype(jnp.uint8)).at[
+                    ].set(jnp.logical_not(is_door).astype(jnp.uint8)).at[ # Is button?
                         idx_offset + 3 * button_idx + 2, rel[:, 0], rel[:, 1]
-                    ].set(is_door.astype(jnp.uint8))
+                    ].set(is_door.astype(jnp.uint8)) # Is door?
 
                 b = jax.lax.fori_loop(0, self.n_buttons, place_button, b)
 
