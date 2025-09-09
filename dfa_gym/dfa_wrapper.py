@@ -24,12 +24,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        max_coop_reward: float = 1e-1
+        self_reward_ratio: float = 1e-1
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.coop_reward_ratio = 0 if self.num_agents == 1 else max_coop_reward / (self.num_agents - 1)
+        self.self_reward_ratio = self_reward_ratio
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -134,15 +134,9 @@ class DFAWrapper(MultiAgentEnv):
             agent: jax.lax.cond(
                 state.dfa_dones[agent],
                 lambda _: 0.0,
-                lambda _: dfas[agent].reward(),
+                lambda _: dfas[agent].reward() * self.self_reward_ratio,
                 operand=None
             )
-            for agent in self.agents
-        }
-
-        dfa_rewards_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
-        rewards = {
-            agent: env_rewards[agent] + dfa_rewards[agent] + self.coop_reward_ratio * (dfa_rewards_sum - dfa_rewards[agent])
             for agent in self.agents
         }
 
@@ -157,6 +151,17 @@ class DFAWrapper(MultiAgentEnv):
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
+
+        overall_dfa_reward = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents])) / self.num_agents
+        rewards = {
+            agent: jax.lax.cond(
+                dones["__all__"],
+                lambda _: env_rewards[agent] + dfa_rewards[agent] + overall_dfa_reward,
+                lambda _: env_rewards[agent] + dfa_rewards[agent],
+                operand=None
+            )
+            for agent in self.agents
+        }
 
         infos = {}
 
