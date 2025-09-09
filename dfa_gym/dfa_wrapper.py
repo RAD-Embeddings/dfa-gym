@@ -134,18 +134,23 @@ class DFAWrapper(MultiAgentEnv):
             agent: jax.lax.cond(
                 state.dfa_dones[agent],
                 lambda _: 0.0,
-                # lambda _: dfas[agent].reward() * self.self_reward_ratio,
-                lambda _: dfas[agent].reward(),
+                lambda _: dfas[agent].reward() * self.self_reward_ratio,
+                # lambda _: dfas[agent].reward(),
                 operand=None
             )
             for agent in self.agents
         }
 
-        overall_dfa_reward = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents])) / self.num_agents
         rewards = {
-            agent: env_rewards[agent] + overall_dfa_reward
+            agent: env_rewards[agent] + dfa_rewards[agent]
             for agent in self.agents
         }
+
+        # overall_dfa_reward = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents])) / self.num_agents
+        # rewards = {
+        #     agent: env_rewards[agent] + overall_dfa_reward
+        #     for agent in self.agents
+        # }
 
         dfa_dones = {
             agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
@@ -159,16 +164,16 @@ class DFAWrapper(MultiAgentEnv):
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
 
-        # overall_dfa_reward = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents])) / self.num_agents
-        # rewards = {
-        #     agent: jax.lax.cond(
-        #         dones["__all__"],
-        #         lambda _: env_rewards[agent] + dfa_rewards[agent] + overall_dfa_reward,
-        #         lambda _: env_rewards[agent] + dfa_rewards[agent],
-        #         operand=None
-        #     )
-        #     for agent in self.agents
-        # }
+        dfa_reward_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
+        rewards = {
+            agent: jax.lax.cond(
+                dones["__all__"],
+                lambda _: rewards[agent] + (dfa_reward_sum - dfas[agent].reward()) / self.num_agents,
+                lambda _: rewards[agent],
+                operand=None
+            )
+            for agent in self.agents
+        }
 
         infos = {}
 
