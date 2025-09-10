@@ -140,7 +140,7 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
-        rho = jnp.floor(state.rho * 10) / 10
+        rho = jnp.ceil(state.rho * 10) / 10
 
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
         dfa_rewad = dfa_reward_sum * rho
