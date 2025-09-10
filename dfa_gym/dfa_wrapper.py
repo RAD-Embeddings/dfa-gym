@@ -17,7 +17,7 @@ class DFAWrapperState(State):
     env_obs: chex.Array
     env_state: State
     dfa_dones: Dict[str, bool]
-    rho: float = 0.3
+    rho: float
 
 class DFAWrapper(MultiAgentEnv):
 
@@ -25,10 +25,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
+        rho: float = 0.5
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
+        self.rho = rho
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -99,7 +101,8 @@ class DFAWrapper(MultiAgentEnv):
             dfas=dfas,
             env_obs=env_obs,
             env_state=env_state,
-            dfa_dones={agent: False for agent in self.agents}
+            dfa_dones={agent: False for agent in self.agents},
+            rho=self.rho
         )
         obs = self.get_obs(state=state)
 
@@ -139,7 +142,7 @@ class DFAWrapper(MultiAgentEnv):
 
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
         rewards = {
-            agent: env_rewards[agent] + dfa_reward_sum * (1 - state.rho)
+            agent: env_rewards[agent] + dfa_reward_sum * state.rho
             for agent in self.agents
         }
 
@@ -159,7 +162,7 @@ class DFAWrapper(MultiAgentEnv):
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], overall_dfa_reward == self.num_agents),
-                lambda _: rewards[agent] + overall_dfa_reward * state.rho,
+                lambda _: rewards[agent] + overall_dfa_reward * (1 - state.rho),
                 lambda _: rewards[agent],
                 operand=None
             )
@@ -172,7 +175,8 @@ class DFAWrapper(MultiAgentEnv):
             dfas=dfas,
             env_obs=env_obs,
             env_state=env_state,
-            dfa_dones=dfa_dones
+            dfa_dones=dfa_dones,
+            rho=state.rho
         )
 
         obs = self.get_obs(state=state)
