@@ -35,7 +35,6 @@ class DFAWrapper(MultiAgentEnv):
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
 
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
-        self.agent_ids = {agent: agent_id for agent, agent_id in zip(self.agents, jnp.arange(self.num_agents))}
 
         self.action_spaces = {
             agent: self.env.action_space(agent)
@@ -61,7 +60,6 @@ class DFAWrapper(MultiAgentEnv):
             n_other = self.num_agents - 1
             self.observation_spaces = {
                 agent: spaces.Dict({
-                    "agent_id": spaces.Discrete(self.num_agents),
                     "assume": spaces.Dict({
                         "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other, 4), dtype=jnp.uint16),
                         "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other*max_dfa_size*n_other, n_tokens + 8), dtype=jnp.uint16),
@@ -201,7 +199,6 @@ class DFAWrapper(MultiAgentEnv):
         guarantees = {agent: graphs[i] for i, agent in enumerate(self.agents)}
         return {
             agent: {
-                "agent_id": self.agent_ids[agent],
                 "assume": assumes[agent],
                 "obs": state.env_obs[agent],
                 "guarantee": guarantees[agent]
