@@ -140,8 +140,10 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
+        rho = jnp.floor(state.rho * 10) / 10
+
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
-        dfa_rewad = jnp.round(dfa_reward_sum * jnp.round(state.rho, decimals=1), decimals=1)
+        dfa_rewad = dfa_reward_sum * rho
         rewards = {
             agent: env_rewards[agent] + dfa_rewad
             for agent in self.agents
@@ -160,7 +162,7 @@ class DFAWrapper(MultiAgentEnv):
         dones.update({"__all__": jnp.all(_dones)})
 
         overall_dfa_reward_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
-        overall_dfa_reward = jnp.round(overall_dfa_reward_sum * (1 - jnp.round(state.rho, decimals=1)), decimals=1)
+        overall_dfa_reward = overall_dfa_reward_sum * (1 - rho)
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], overall_dfa_reward_sum == self.num_agents),
