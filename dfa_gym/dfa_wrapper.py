@@ -24,12 +24,12 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        online_reward_ratio: float | None = None
+        online_reward_fraction: float = 0.5
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.online_reward_ratio = online_reward_ratio if online_reward_ratio is not None else 1 / self.num_agents
+        self.online_reward_fraction = online_reward_fraction
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -142,7 +142,7 @@ class DFAWrapper(MultiAgentEnv):
 
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
         rewards = {
-            agent: env_rewards[agent] + dfa_reward_sum * self.online_reward_ratio
+            agent: env_rewards[agent] + dfa_reward_sum * self.online_reward_fraction
             for agent in self.agents
         }
 
@@ -162,7 +162,7 @@ class DFAWrapper(MultiAgentEnv):
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], overall_dfa_reward == self.num_agents),
-                lambda _: rewards[agent] + overall_dfa_reward * (1 - self.online_reward_ratio),
+                lambda _: rewards[agent] + overall_dfa_reward * (1 - self.online_reward_fraction),
                 lambda _: rewards[agent],
                 operand=None
             )
