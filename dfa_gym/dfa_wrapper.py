@@ -17,6 +17,7 @@ class DFAWrapperState(State):
     env_obs: chex.Array
     env_state: State
     dfa_dones: Dict[str, bool]
+    rho: float = 0.3
 
 class DFAWrapper(MultiAgentEnv):
 
@@ -24,12 +25,10 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         sampler: DFASampler = RADSampler(),
-        online_reward_fraction: float = 0.5
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.online_reward_fraction = online_reward_fraction
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -111,7 +110,7 @@ class DFAWrapper(MultiAgentEnv):
         self,
         key: chex.PRNGKey,
         state: DFAWrapperState,
-        action: int
+        action: int,
     ) -> Tuple[Dict[str, chex.Array], DFAWrapperState, Dict[str, float], Dict[str, bool], Dict]:
 
         env_obs, env_state, env_rewards, env_dones, env_info = self.env.step_env(key, state.env_state, action)
@@ -140,7 +139,7 @@ class DFAWrapper(MultiAgentEnv):
 
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
         rewards = {
-            agent: env_rewards[agent] + dfa_reward_sum * self.online_reward_fraction
+            agent: env_rewards[agent] + dfa_reward_sum * (1 - state.rho)
             for agent in self.agents
         }
 
@@ -160,7 +159,7 @@ class DFAWrapper(MultiAgentEnv):
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], overall_dfa_reward == self.num_agents),
-                lambda _: rewards[agent] + overall_dfa_reward * (1 - self.online_reward_fraction),
+                lambda _: rewards[agent] + overall_dfa_reward * state.rho,
                 lambda _: rewards[agent],
                 operand=None
             )
