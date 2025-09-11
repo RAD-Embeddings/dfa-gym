@@ -140,7 +140,7 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
-        rho_tenth = (state.rho * 10 + 1).astype(jnp.int32)
+        rho_tenth = jnp.ceil(state.rho * 10).astype(jnp.int32)
 
         dfa_reward_sum = jnp.sum(jnp.array([dfa_rewards[agent] for agent in self.agents]))
         dfa_reward = (dfa_reward_sum * rho_tenth).astype(jnp.int32) / 10
