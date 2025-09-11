@@ -141,7 +141,7 @@ class DFAWrapper(MultiAgentEnv):
         }
 
         rewards = {
-            agent: env_rewards[agent] + dfa_rewards[aget] * state.rho
+            agent: env_rewards[agent] + dfa_rewards[agent] * state.rho
             for agent in self.agents
         }
 
