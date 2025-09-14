@@ -47,7 +47,6 @@ class TokenEnv(MultiAgentEnv):
         max_steps_in_episode: int = 100,
         collision_reward: int | None = None,
         black_death: bool = True,
-        is_circular: bool = False,
         layout: str | None = None
     ) -> None:
         super().__init__(num_agents=n_agents)
@@ -61,7 +60,6 @@ class TokenEnv(MultiAgentEnv):
         self.max_steps_in_episode = max_steps_in_episode
         self.collision_reward = collision_reward
         self.black_death = black_death
-        self.is_circular = is_circular
         self.n_buttons = 0
 
         self.agents = [f"agent_{i}" for i in range(self.n_agents)]
@@ -112,16 +110,7 @@ class TokenEnv(MultiAgentEnv):
 
         # Move agents
         def move_agent(pos, a):
-            new_pos = pos + ACTION_MAP[a]
-            new_pos_circ = new_pos % self.grid_shape_arr
-            if self.is_circular:
-                return new_pos_circ
-            else:
-                return jnp.where(
-                    jnp.all(new_pos == new_pos_circ),
-                    new_pos,
-                    pos
-                )
+            return (pos + ACTION_MAP[a]) % self.grid_shape_arr
         new_agent_pos = jax.vmap(move_agent, in_axes=(0, 0))(state.agent_positions, _actions)
         new_agent_pos = jnp.where(state.is_alive[:, None], new_agent_pos, state.agent_positions)
 
