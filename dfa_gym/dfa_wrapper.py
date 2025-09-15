@@ -152,7 +152,7 @@ class DFAWrapper(MultiAgentEnv):
         }
 
         rewards = {
-            agent: rewards[agent] + self.gamma * dfas[agent].potential() - state.dfas[agent].potential()
+            agent: rewards[agent] + self.gamma * self.potential(agent, dfas) - self.potential(agent, state.dfas)
             for agent in self.agents
         }
 
@@ -194,6 +194,14 @@ class DFAWrapper(MultiAgentEnv):
             }
             for agent in self.agents
         }
+
+    @partial(jax.jit, static_argnums=(0,))
+    def potential(
+        self,
+        agent: str,
+        dfas: Dict[str, dfax.DFAx]
+    ) -> float:
+        return dfas[agent].reward()
 
     def render(self, state: DFAWrapperState):
         out = ""
