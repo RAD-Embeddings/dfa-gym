@@ -23,11 +23,13 @@ class DFAWrapper(MultiAgentEnv):
     def __init__(
         self,
         env: MultiAgentEnv,
-        sampler: DFASampler = RADSampler()
+        sampler: DFASampler = RADSampler(),
+        gamma: float = 0.99
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
+        self.gamma = gamma
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -126,18 +128,8 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
-        dfa_rewards = {
-            agent: jax.lax.cond(
-                state.dfa_dones[agent],
-                lambda _: 0.0,
-                lambda _: dfas[agent].reward(),
-                operand=None
-            )
-            for agent in self.agents
-        }
-
         dfa_dones = {
-            agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
+            agent: dfas[agent].reward() != 0
             for agent in self.agents
         }
 
@@ -152,10 +144,15 @@ class DFAWrapper(MultiAgentEnv):
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], jnp.abs(dfa_reward_sum) == self.num_agents),
-                lambda _: env_rewards[agent] + dfa_rewards[agent] + dfa_reward_sum - dfas[agent].reward(),
-                lambda _: env_rewards[agent] + dfa_rewards[agent],
+                lambda _: env_rewards[agent] + 1,
+                lambda _: env_rewards[agent],
                 operand=None
             )
+            for agent in self.agents
+        }
+
+        rewards = {
+            agent: rewards[agent] + self.gamma * dfas[agent].potential() - state.dfas[agent].potential()
             for agent in self.agents
         }
 
