@@ -91,27 +91,42 @@ def test(env):
 # """
 
 
+# layout = """
+#     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][#,a][ 0 ][   ][ 1 ][ # ]
+#     [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][   ][ 4 ][   ][ # ]
+#     [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][ 3 ][   ][ 2 ][ # ]
+#     [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][#,a][#,a][#,a][ # ]
+#     [ # ][ A ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
+#     [ # ][ B ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
+#     [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][#,b][#,b][#,b][ # ]
+#     [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][ 5 ][   ][ 6 ][ # ]
+#     [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][   ][ 9 ][   ][ # ]
+#     [ # ][   ][   ][   ][   ][   ][   ][#,b][ 8 ][   ][ 7 ][ # ]
+#     [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+# """
+
 layout = """
-    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][#,a][ 0 ][   ][ 1 ][ # ]
-    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][   ][ 4 ][   ][ # ]
-    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][ 3 ][   ][ 2 ][ # ]
-    [ # ][   ][   ][ b ][ b ][ b ][   ][#,a][#,a][#,a][#,a][ # ]
-    [ # ][ A ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
-    [ # ][ B ][   ][   ][   ][   ][   ][   ][   ][   ][   ][ # ]
-    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][#,b][#,b][#,b][ # ]
-    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][ 5 ][   ][ 6 ][ # ]
-    [ # ][   ][   ][ a ][ a ][ a ][   ][#,b][   ][ 9 ][   ][ # ]
-    [ # ][   ][   ][   ][   ][   ][   ][#,b][ 8 ][   ][ 7 ][ # ]
-    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
-"""
+    [ 4 ][   ][   ][   ][   ][   ][   ][#,a][#,a][#,a][#,a][#,a]
+    [   ][   ][   ][ a ][ a ][ a ][   ][#,a][ 0 ][ B ][ 1 ][#,a]
+    [   ][   ][   ][ a ][A,a][ a ][   ][#,a][   ][   ][   ][#,a]
+    [   ][   ][   ][ a ][ a ][ a ][   ][#,a][ 3 ][   ][ 2 ][#,a]
+    [   ][   ][   ][   ][   ][   ][   ][#,a][#,a][#,a][#,a][#,a]
+    [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
+    [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
+    [   ][   ][   ][   ][   ][   ][   ][#,b][#,b][#,b][#,b][#,b]
+    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][ 5 ][   ][ 6 ][#,b]
+    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][   ][   ][   ][#,b]
+    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][ 8 ][   ][ 7 ][#,b]
+    [ 9 ][   ][   ][   ][   ][   ][   ][#,b][#,b][#,b][#,b][#,b]
+    """
 
 if __name__ == '__main__':
     # test(env=TokenEnv(is_circular=True, is_walled=True, collision_reward=-1e2))
     # test(env=DFABisimEnv())
     # test(env=DFAWrapper(env=TokenEnv(grid_shape=(4,7), n_token_repeat=1, n_agents=2, is_circular=False, is_walled=True)))
-    from dfax.samplers import ReachSampler
-    test(env=DFAWrapper(TokenEnv(layout=layout, max_steps_in_episode=200), sampler=ReachSampler(max_size=2)))
+    from dfax.samplers import ReachSampler, ReachAvoidSampler
+    test(env=DFAWrapper(TokenEnv(layout=layout, max_steps_in_episode=200), sampler=ReachAvoidSampler(max_size=3)))
     # env=TokenEnv(layout=layout)
     # print(env.init_state)
     # env.render(env.init_state)

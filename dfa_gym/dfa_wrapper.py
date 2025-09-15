@@ -151,8 +151,12 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
+        potential_v1 = lambda agent, dfas: dfas[agent].reward()
+        potential_v2 = lambda agent, dfas: jnp.sum(jnp.array([dfas[other].reward() for other in self.agents]))
+        potential_v3 = lambda agent, dfas: (potential_v2(agent, dfas) - potential_v1(agent, dfas)) * 0.1 + potential_v1(agent, dfas)
+
         rewards = {
-            agent: rewards[agent] + self.gamma * self.potential_v1(agent, dfas) - self.potential_v1(agent, state.dfas)
+            agent: rewards[agent] + self.gamma * potential_v1(agent, dfas) - potential_v1(agent, state.dfas)
             for agent in self.agents
         }
 
@@ -194,30 +198,6 @@ class DFAWrapper(MultiAgentEnv):
             }
             for agent in self.agents
         }
-
-    @partial(jax.jit, static_argnums=(0,))
-    def potential_v1(
-        self,
-        agent: str,
-        dfas: Dict[str, dfax.DFAx]
-    ) -> float:
-        return dfas[agent].reward()
-
-    @partial(jax.jit, static_argnums=(0,))
-    def potential_v2(
-        self,
-        agent: str,
-        dfas: Dict[str, dfax.DFAx]
-    ) -> float:
-        return jnp.sum(jnp.array([dfas[other].reward() for other in self.agents]))
-
-    @partial(jax.jit, static_argnums=(0,))
-    def potential_v3(
-        self,
-        agent: str,
-        dfas: Dict[str, dfax.DFAx]
-    ) -> float:
-        return (self.potential_v2(agent, dfas) - self.potential_v1(agent, dfas)) * 0.1 + self.potential_v1(agent, dfas)
 
     def render(self, state: DFAWrapperState):
         out = ""
