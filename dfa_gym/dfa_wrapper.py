@@ -17,20 +17,17 @@ class DFAWrapperState(State):
     env_obs: chex.Array
     env_state: State
     dfa_dones: Dict[str, bool]
-    rho: float
 
 class DFAWrapper(MultiAgentEnv):
 
     def __init__(
         self,
         env: MultiAgentEnv,
-        sampler: DFASampler = RADSampler(),
-        rho: float = 0.5
+        sampler: DFASampler = RADSampler()
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.sampler = sampler
-        self.rho = rho
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -101,8 +98,7 @@ class DFAWrapper(MultiAgentEnv):
             dfas=dfas,
             env_obs=env_obs,
             env_state=env_state,
-            dfa_dones={agent: False for agent in self.agents},
-            rho=self.rho
+            dfa_dones={agent: dfas[agent].reward() != 0 for agent in self.agents}
         )
         obs = self.get_obs(state=state)
 
@@ -140,18 +136,13 @@ class DFAWrapper(MultiAgentEnv):
             for agent in self.agents
         }
 
-        rewards = {
-            agent: env_rewards[agent] + dfa_rewards[agent] * state.rho
-            for agent in self.agents
-        }
-
         dfa_dones = {
             agent: jnp.logical_or(state.dfa_dones[agent], dfa_rewards[agent] != 0)
             for agent in self.agents
         }
 
         dones = {
-            agent: jnp.logical_or(dfa_dones[agent], env_dones[agent])
+            agent: jnp.logical_or(env_dones[agent], dfa_dones[agent])
             for agent in self.agents
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
@@ -161,8 +152,8 @@ class DFAWrapper(MultiAgentEnv):
         rewards = {
             agent: jax.lax.cond(
                 jnp.logical_and(dones["__all__"], dfa_reward_sum == self.num_agents),
-                lambda _: rewards[agent] + dfa_reward_sum - dfas[agent].reward() * state.rho,
-                lambda _: rewards[agent],
+                lambda _: env_rewards[agent] + dfa_rewards[agent] + dfa_reward_sum - dfas[agent].reward(),
+                lambda _: env_rewards[agent] + dfa_rewards[agent],
                 operand=None
             )
             for agent in self.agents
@@ -174,8 +165,7 @@ class DFAWrapper(MultiAgentEnv):
             dfas=dfas,
             env_obs=env_obs,
             env_state=env_state,
-            dfa_dones=dfa_dones,
-            rho=state.rho
+            dfa_dones=dfa_dones
         )
 
         obs = self.get_obs(state=state)
