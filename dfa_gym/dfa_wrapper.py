@@ -151,7 +151,7 @@ class DFAWrapper(MultiAgentEnv):
         dfa_reward_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
         rewards = {
             agent: jax.lax.cond(
-                jnp.logical_and(dones["__all__"], dfa_reward_sum == self.num_agents),
+                jnp.logical_and(dones["__all__"], jnp.abs(dfa_reward_sum) == self.num_agents),
                 lambda _: env_rewards[agent] + dfa_rewards[agent] + dfa_reward_sum - dfas[agent].reward(),
                 lambda _: env_rewards[agent] + dfa_rewards[agent],
                 operand=None
