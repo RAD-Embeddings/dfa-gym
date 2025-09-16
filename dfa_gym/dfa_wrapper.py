@@ -23,13 +23,13 @@ class DFAWrapper(MultiAgentEnv):
     def __init__(
         self,
         env: MultiAgentEnv,
-        sampler: DFASampler = RADSampler(),
-        gamma: float = 0.99
+        gamma: float | None = 0.99,
+        sampler: DFASampler = RADSampler()
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
-        self.sampler = sampler
         self.gamma = gamma
+        self.sampler = sampler
 
         assert self.sampler.n_tokens == self.env.n_tokens
         assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
@@ -140,33 +140,25 @@ class DFAWrapper(MultiAgentEnv):
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
 
-        dfa_reward_sum = jnp.sum(jnp.array([dfas[agent].reward() for agent in self.agents]))
+        dfa_rewards = jnp.array([dfas[agent].reward() for agent in self.agents])
+        dfa_rewards_sum = jnp.sum(dfa_rewards)
+        dfa_rewards_min = jnp.min(dfa_rewards)
+        is_accepted = (dfa_rewards_sum == self.num_agents)
         rewards = {
             agent: jax.lax.cond(
-                jnp.logical_and(dones["__all__"], jnp.abs(dfa_reward_sum) == self.num_agents),
-                lambda _: env_rewards[agent] + 1,
+                dones["__all__"],
+                lambda _: env_rewards[agent] + 1 * is_accepted + dfa_rewards_min * (1 - is_accepted),
                 lambda _: env_rewards[agent],
                 operand=None
             )
             for agent in self.agents
         }
 
-        potential_v1 = lambda agent, dfas: dfas[agent].reward()
-        potential_v2 = lambda agent, dfas: jnp.sum(jnp.array([dfas[other].reward() for other in self.agents])) # Learns a suboptimal policy prob due to credit assignment
-        potential_v3 = lambda agent, dfas: (potential_v2(agent, dfas) - potential_v1(agent, dfas)) * 0.1 + potential_v1(agent, dfas)
-        potential_v3_1 = lambda agent, dfas: (potential_v2(agent, dfas) - potential_v1(agent, dfas)) * 0.05 + potential_v1(agent, dfas)
-        potential_v3_2 = lambda agent, dfas: (potential_v2(agent, dfas) - potential_v1(agent, dfas)) * 0.5 + potential_v1(agent, dfas)
-
-        potential_v4 = lambda agent, dfas: jnp.where(dfas[agent].n_states > 1, 1/dfas[agent].n_states*0.01, dfas[agent].reward())
-        potential_v5 = lambda agent, dfas: jnp.sum(jnp.array([potential_v4(other, dfas) for other in self.agents])) # Don't try this
-        potential_v6 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.1 + potential_v4(agent, dfas)
-        potential_v6_1 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.05 + potential_v4(agent, dfas)
-        potential_v6_2 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.5 + potential_v4(agent, dfas)
-
-        rewards = {
-            agent: rewards[agent] + self.gamma * potential_v1(agent, dfas) - potential_v1(agent, state.dfas)
-            for agent in self.agents
-        }
+        if self.gamma is not None:
+            rewards = {
+                agent: rewards[agent] + self.gamma * dfas[agent].reward() - state.dfas[agent].reward()
+                for agent in self.agents
+            }
 
         infos = {}
 
