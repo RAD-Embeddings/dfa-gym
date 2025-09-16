@@ -158,7 +158,7 @@ class DFAWrapper(MultiAgentEnv):
         potential_v3_2 = lambda agent, dfas: (potential_v2(agent, dfas) - potential_v1(agent, dfas)) * 0.5 + potential_v1(agent, dfas)
 
         potential_v4 = lambda agent, dfas: jnp.where(dfas[agent].n_states > 1, 1/dfas[agent].n_states*0.01, dfas[agent].reward())
-        potential_v5 = lambda agent, dfas: jnp.sum(jnp.array([potential_v4(agent, dfas) for other in self.agents])) # Don't try this
+        potential_v5 = lambda agent, dfas: jnp.sum(jnp.array([potential_v4(other, dfas) for other in self.agents])) # Don't try this
         potential_v6 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.1 + potential_v4(agent, dfas)
         potential_v6_1 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.05 + potential_v4(agent, dfas)
         potential_v6_2 = lambda agent, dfas: (potential_v5(agent, dfas) - potential_v4(agent, dfas)) * 0.5 + potential_v4(agent, dfas)
