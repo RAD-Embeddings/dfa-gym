@@ -8,7 +8,7 @@ from functools import partial
 from typing import Tuple, Dict, Callable
 from dfax.utils import list2batch, batch2graph
 from dfa_gym.env import MultiAgentEnv, State
-from dfax.samplers import DFASampler, RADSampler, ConflictSampler
+from dfax.samplers import DFASampler, RADSampler
 
 
 @struct.dataclass
@@ -32,7 +32,6 @@ class DFAWrapper(MultiAgentEnv):
         self.sampler = sampler
 
         assert self.sampler.n_tokens == self.env.n_tokens
-        assert not isinstance(self.sampler, ConflictSampler) or self.sampler.n_agents == self.env.n_agents
 
         self.agents = [f"agent_{i}" for i in range(self.num_agents)]
 
@@ -88,13 +87,22 @@ class DFAWrapper(MultiAgentEnv):
         key, subkey = jax.random.split(key)
         env_obs, env_state = self.env.reset(subkey)
 
-        if isinstance(self.sampler, ConflictSampler):
-            key, subkey = jax.random.split(key)
-            dfas = self.sampler.sample(subkey)
-        else:
+        def sample_dfas(key):
             keys = jax.random.split(key, self.num_agents + 1)
             key, subkeys = keys[0], keys[1:]
             dfas = {agent: self.sampler.sample(subkeys[i]) for i, agent in enumerate(self.agents)}
+            return key, dfas
+
+        def cond_fun(carry):
+            key, dfas = carry
+            n_states = jnp.array([dfa.n_states for dfa in dfas.values()])
+            return jnp.all(n_states <= 1)
+
+        def body_fun(carry):
+            key, _ = carry
+            return sample_dfas(key)
+
+        key, dfas = jax.lax.while_loop(cond_fun, body_fun, sample_dfas(key))
 
         state = DFAWrapperState(
             dfas=dfas,
