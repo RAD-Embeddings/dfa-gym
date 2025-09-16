@@ -16,7 +16,6 @@ class DFAWrapperState(State):
     dfas: Dict[str, dfax.DFAx]
     env_obs: chex.Array
     env_state: State
-    dfa_dones: Dict[str, bool]
 
 class DFAWrapper(MultiAgentEnv):
 
@@ -107,8 +106,7 @@ class DFAWrapper(MultiAgentEnv):
         state = DFAWrapperState(
             dfas=dfas,
             env_obs=env_obs,
-            env_state=env_state,
-            dfa_dones={agent: dfas[agent].reward() != 0 for agent in self.agents}
+            env_state=env_state
         )
         obs = self.get_obs(state=state)
 
@@ -127,22 +125,12 @@ class DFAWrapper(MultiAgentEnv):
         symbols = self.env.label_f(env_state)
 
         dfas = {
-            agent: jax.lax.cond(
-                state.dfa_dones[agent],
-                lambda _: state.dfas[agent],
-                lambda _: state.dfas[agent].advance(symbols[agent]).minimize(),
-                operand=None
-            )
-            for agent in self.agents
-        }
-
-        dfa_dones = {
-            agent: dfas[agent].reward() != 0
+            agent: state.dfas[agent].advance(symbols[agent]).minimize()
             for agent in self.agents
         }
 
         dones = {
-            agent: jnp.logical_or(env_dones[agent], dfa_dones[agent])
+            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward() != 0)
             for agent in self.agents
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
@@ -173,8 +161,7 @@ class DFAWrapper(MultiAgentEnv):
         state = DFAWrapperState(
             dfas=dfas,
             env_obs=env_obs,
-            env_state=env_state,
-            dfa_dones=dfa_dones
+            env_state=env_state
         )
 
         obs = self.get_obs(state=state)
