@@ -130,7 +130,7 @@ class DFAWrapper(MultiAgentEnv):
         }
 
         dones = {
-            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward() != 0)
+            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward() != 0.0)
             for agent in self.agents
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
