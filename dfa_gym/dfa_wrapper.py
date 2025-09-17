@@ -136,14 +136,11 @@ class DFAWrapper(MultiAgentEnv):
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
 
-        dfa_rewards = jnp.array([dfas[agent].reward() for agent in self.agents])
-        dfa_rewards_sum = jnp.sum(dfa_rewards)
-        dfa_rewards_min = jnp.min(dfa_rewards)
-        is_accepted = (dfa_rewards_sum == self.num_agents)
+        dfa_rewards_min = jnp.min(jnp.array([dfas[agent].reward() for agent in self.agents]))
         rewards = {
             agent: jax.lax.cond(
                 dones["__all__"],
-                lambda _: env_rewards[agent] + 1 * is_accepted + dfa_rewards_min * (1 - is_accepted),
+                lambda _: env_rewards[agent] + dfa_rewards_min,
                 lambda _: env_rewards[agent],
                 operand=None
             )
