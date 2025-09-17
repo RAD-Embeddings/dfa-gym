@@ -86,9 +86,22 @@ class DFAWrapper(MultiAgentEnv):
         key, subkey = jax.random.split(key)
         env_obs, env_state = self.env.reset(subkey)
 
-        keys = jax.random.split(key, self.num_agents + 1)
-        key, subkeys = keys[0], keys[1:]
-        dfas = {agent: self.sampler.sample(subkeys[i]) for i, agent in enumerate(self.agents)}
+        def sample_dfas(key):
+            keys = jax.random.split(key, self.num_agents + 1)
+            key, subkeys = keys[0], keys[1:]
+            dfas = {agent: self.sampler.sample(subkeys[i]) for i, agent in enumerate(self.agents)}
+            return key, dfas
+
+        def cond_fun(carry):
+            key, dfas = carry
+            n_states = jnp.array([dfa.n_states for dfa in dfas.values()])
+            return jnp.all(n_states <= 1)
+
+        def body_fun(carry):
+            key, _ = carry
+            return sample_dfas(key)
+
+        key, dfas = jax.lax.while_loop(cond_fun, body_fun, sample_dfas(key))
 
         state = DFAWrapperState(
             dfas=dfas,
