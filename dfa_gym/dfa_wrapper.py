@@ -45,11 +45,11 @@ class DFAWrapper(MultiAgentEnv):
                 agent: spaces.Dict({
                     "obs": self.env.observation_space(agent),
                     "guarantee": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.float32),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.float32),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.int32),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.int32),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.int32)
                     })
                 })
                 for agent in self.agents
@@ -59,19 +59,19 @@ class DFAWrapper(MultiAgentEnv):
             self.observation_spaces = {
                 agent: spaces.Dict({
                     "assume": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other, 4), dtype=jnp.uint16),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other*max_dfa_size*n_other, n_tokens + 8), dtype=jnp.uint16),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(2, max_dfa_size*n_other*max_dfa_size*n_other), dtype=jnp.uint16),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(n_other,), dtype=jnp.uint16),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(max_dfa_size*n_other,), dtype=jnp.uint16)
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other, 4), dtype=jnp.float32),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other*max_dfa_size*n_other, n_tokens + 8), dtype=jnp.float32),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(2, max_dfa_size*n_other*max_dfa_size*n_other), dtype=jnp.int32),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(n_other,), dtype=jnp.int32),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(max_dfa_size*n_other,), dtype=jnp.int32)
                     }),
                     "obs": self.env.observation_space(agent),
                     "guarantee": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.uint16),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.uint16),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.uint16),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.uint16),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.uint16)
+                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.float32),
+                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.float32),
+                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.int32),
+                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.int32),
+                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.int32)
                     })
                 })
                 for agent in self.agents
