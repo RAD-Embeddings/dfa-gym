@@ -130,13 +130,13 @@ class DFAWrapper(MultiAgentEnv):
         }
 
         dones = {
-            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward() != 0.0)
+            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward(binary=True) != 0.0)
             for agent in self.agents
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
 
-        dfa_rewards_min = jnp.min(jnp.array([dfas[agent].reward() for agent in self.agents]))
+        dfa_rewards_min = jnp.min(jnp.array([dfas[agent].reward(binary=True) for agent in self.agents]))
         rewards = {
             agent: jax.lax.cond(
                 dones["__all__"],
@@ -149,7 +149,7 @@ class DFAWrapper(MultiAgentEnv):
 
         if self.gamma is not None:
             rewards = {
-                agent: rewards[agent] + self.gamma * dfas[agent].reward() - state.dfas[agent].reward()
+                agent: rewards[agent] + self.gamma * dfas[agent].reward(binary=True) - state.dfas[agent].reward(binary=True)
                 for agent in self.agents
             }
 
