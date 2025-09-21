@@ -3,7 +3,7 @@ from dfa_gym import TokenEnv, DFABisimEnv, DFAWrapper
 
 def test(env):
 
-    key = jax.random.PRNGKey(30)
+    key = jax.random.PRNGKey(1133)
 
     n = 1_000
 
@@ -107,26 +107,25 @@ def test(env):
 # """
 
 layout = """
-    [ 4 ][   ][   ][   ][   ][   ][   ][#,a][#,a][#,a][#,a][#,a]
-    [   ][   ][   ][ a ][ a ][ a ][   ][#,a][ 0 ][ B ][ 1 ][#,a]
-    [   ][   ][   ][ a ][A,a][ a ][   ][#,a][   ][   ][   ][#,a]
-    [   ][   ][   ][ a ][ a ][ a ][   ][#,a][ 3 ][   ][ 2 ][#,a]
-    [   ][   ][   ][   ][   ][   ][   ][#,a][#,a][#,a][#,a][#,a]
-    [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
-    [   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ][   ]
-    [   ][   ][   ][   ][   ][   ][   ][#,b][#,b][#,b][#,b][#,b]
-    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][ 5 ][   ][ 6 ][#,b]
-    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][   ][   ][   ][#,b]
-    [   ][   ][   ][ b ][ b ][ b ][   ][#,b][ 8 ][   ][ 7 ][#,b]
-    [ 9 ][   ][   ][   ][   ][   ][   ][#,b][#,b][#,b][#,b][#,b]
+    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+    [ # ][ 0 ][   ][ 2 ][ # ][ 1 ][   ][ 3 ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][ a ][ 8 ][ A ][#,a][ B ][ 9 ][ a ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][ 6 ][   ][ 4 ][ # ][ 7 ][   ][ 5 ][ # ]
+    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
     """
 
 if __name__ == '__main__':
     # test(env=TokenEnv(is_circular=True, is_walled=True, collision_reward=-1e2))
     # test(env=DFABisimEnv())
     # test(env=DFAWrapper(env=TokenEnv(grid_shape=(4,7), n_token_repeat=1, n_agents=2, is_circular=False, is_walled=True)))
-    from dfax.samplers import ReachSampler, ReachAvoidSampler
-    test(env=DFAWrapper(TokenEnv(layout=layout, max_steps_in_episode=200), sampler=ReachAvoidSampler(max_size=3)))
+    from dfax.samplers import ReachSampler, ReachAvoidSampler, RADSampler
+    test(env=DFAWrapper(TokenEnv(layout=layout, max_steps_in_episode=200), sampler=RADSampler(max_size=4, sample_accept=True, p=None, prob_stutter=1.0)))
     # env=TokenEnv(layout=layout)
     # print(env.init_state)
     # env.render(env.init_state)
