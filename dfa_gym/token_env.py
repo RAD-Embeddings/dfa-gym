@@ -81,10 +81,7 @@ class TokenEnv(MultiAgentEnv):
             for agent in self.agents
         }
         self.observation_spaces = {
-            agent: spaces.Dict({
-                "id" :  spaces.Discrete(self.n_agents),
-                "obs": spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8)
-            })
+            agent: spaces.Box(low=0, high=1, shape=self.obs_shape, dtype=jnp.uint8)
             for agent in self.agents
         }
 
@@ -289,7 +286,7 @@ class TokenEnv(MultiAgentEnv):
             return jnp.where(jnp.logical_or(jnp.logical_not(self.black_death), state.is_alive[i]), b, base)
 
         obs = jax.vmap(obs_for_agent)(jnp.arange(self.n_agents))
-        return {agent: {"id": i, "obs": obs[i]} for i, agent in enumerate(self.agents)}
+        return {agent: obs[i] for i, agent in enumerate(self.agents)}
 
     @partial(jax.jit, static_argnums=(0,))
     def label_f(self, state: TokenEnvState) -> Dict[str, int]:

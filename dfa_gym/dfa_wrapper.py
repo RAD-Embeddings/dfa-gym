@@ -40,42 +40,20 @@ class DFAWrapper(MultiAgentEnv):
         }
         max_dfa_size = self.sampler.max_size
         n_tokens = self.sampler.n_tokens
-        if self.num_agents == 1:
-            self.observation_spaces = {
-                agent: spaces.Dict({
-                    "obs": self.env.observation_space(agent),
-                    "guarantee": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.float32),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.float32),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.int32),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.int32),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.int32)
-                    })
-                })
-                for agent in self.agents
-            }
-        else:
-            n_other = self.num_agents - 1
-            self.observation_spaces = {
-                agent: spaces.Dict({
-                    "assume": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other, 4), dtype=jnp.float32),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*n_other*max_dfa_size*n_other, n_tokens + 8), dtype=jnp.float32),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(2, max_dfa_size*n_other*max_dfa_size*n_other), dtype=jnp.int32),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(n_other,), dtype=jnp.int32),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size*n_other, shape=(max_dfa_size*n_other,), dtype=jnp.int32)
-                    }),
-                    "obs": self.env.observation_space(agent),
-                    "guarantee": spaces.Dict({
-                        "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size, 4), dtype=jnp.float32),
-                        "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*max_dfa_size, n_tokens + 8), dtype=jnp.float32),
-                        "edge_index": spaces.Box(low=0, high=max_dfa_size, shape=(2, max_dfa_size*max_dfa_size), dtype=jnp.int32),
-                        "current_state": spaces.Box(low=0, high=max_dfa_size, shape=(1,), dtype=jnp.int32),
-                        "n_states": spaces.Box(low=0, high=max_dfa_size, shape=(max_dfa_size,), dtype=jnp.int32)
-                    })
-                })
-                for agent in self.agents
-            }
+        self.observation_spaces = {
+            agent: spaces.Dict({
+                "_id": spaces.Discrete(self.num_agents),
+                "obs": self.env.observation_space(agent),
+                "dfa": spaces.Dict({
+                    "node_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*self.num_agents, 4), dtype=jnp.float32),
+                    "edge_features": spaces.Box(low=0, high=1, shape=(max_dfa_size*self.num_agents*max_dfa_size*self.num_agents, n_tokens + 8), dtype=jnp.float32),
+                    "edge_index": spaces.Box(low=0, high=max_dfa_size*self.num_agents, shape=(2, max_dfa_size*self.num_agents*max_dfa_size*self.num_agents), dtype=jnp.int32),
+                    "current_state": spaces.Box(low=0, high=max_dfa_size*self.num_agents, shape=(self.num_agents,), dtype=jnp.int32),
+                    "n_states": spaces.Box(low=0, high=max_dfa_size*self.num_agents, shape=(max_dfa_size*self.num_agents,), dtype=jnp.int32)
+                }),
+            })
+            for agent in self.agents
+        }
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(
@@ -178,17 +156,18 @@ class DFAWrapper(MultiAgentEnv):
                 }
                 for agent in self.agents
             }
-
-        graphs = [state.dfas[agent].to_graph() for agent in self.agents]
-        assumes = {agent: batch2graph(list2batch(graphs[:i] + graphs[i + 1:])) for i, agent in enumerate(self.agents)}
-        guarantees = {agent: graphs[i] for i, agent in enumerate(self.agents)}
+        dfas = batch2graph(
+            list2batch(
+                [state.dfas[agent].to_graph() for agent in self.agents]
+            )
+        )
         return {
             agent: {
-                "assume": assumes[agent],
+                "_id": i,
                 "obs": state.env_obs[agent],
-                "guarantee": guarantees[agent]
+                "dfa": dfas
             }
-            for agent in self.agents
+            for i, agent in enumerate(self.agents)
         }
 
     def render(self, state: DFAWrapperState):
