@@ -14,6 +14,7 @@ from dfax.samplers import DFASampler, RADSampler
 @struct.dataclass
 class DFAWrapperState(State):
     dfas: Dict[str, dfax.DFAx]
+    init_dfas: Dict[str, dfax.DFAx]
     env_obs: chex.Array
     env_state: State
 
@@ -24,13 +25,15 @@ class DFAWrapper(MultiAgentEnv):
         env: MultiAgentEnv,
         gamma: float | None = 0.99,
         sampler: DFASampler = RADSampler(),
-        binary_reward: bool = True
+        binary_reward: bool = True,
+        progress: bool = True,
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.gamma = gamma
         self.sampler = sampler
         self.binary_reward = binary_reward
+        self.progress = progress
 
         assert self.sampler.n_tokens == self.env.n_tokens
 
@@ -85,6 +88,7 @@ class DFAWrapper(MultiAgentEnv):
 
         state = DFAWrapperState(
             dfas=dfas,
+            init_dfas={agent: dfas[agent] for agent in self.agents},
             env_obs=env_obs,
             env_state=env_state
         )
@@ -137,6 +141,7 @@ class DFAWrapper(MultiAgentEnv):
 
         state = DFAWrapperState(
             dfas=dfas,
+            init_dfas=state.init_dfas,
             env_obs=env_obs,
             env_state=env_state
         )
@@ -150,11 +155,18 @@ class DFAWrapper(MultiAgentEnv):
         self,
         state: DFAWrapperState
     ) -> Dict[str, chex.Array]:
-        dfas = batch2graph(
-            list2batch(
-                [state.dfas[agent].to_graph() for agent in self.agents]
+        if self.progress:
+            dfas = batch2graph(
+                list2batch(
+                    [state.dfas[agent].to_graph() for agent in self.agents]
+                )
             )
-        )
+        else:
+            dfas = batch2graph(
+                list2batch(
+                    [state.init_dfas[agent].to_graph() for agent in self.agents]
+                )
+            )
         return {
             agent: {
                 "_id": i,
@@ -169,7 +181,10 @@ class DFAWrapper(MultiAgentEnv):
         for agent in self.agents:
             out += "****\n"
             out += f"{agent}'s DFA:\n"
-            out += f"{state.dfas[agent]}\n"
+            if self.progress:
+                out += f"{state.dfas[agent]}\n"
+            else:
+                out += f"{state.init_dfas[agent]}\n"
         self.env.render(state.env_state)
         print(out)
 
