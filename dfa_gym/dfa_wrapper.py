@@ -148,14 +148,6 @@ class DFAWrapper(MultiAgentEnv):
         self,
         state: DFAWrapperState
     ) -> Dict[str, chex.Array]:
-        if self.num_agents == 1:
-            return {
-                agent: {
-                    "obs": state.env_obs[agent],
-                    "guarantee": state.dfas[agent].to_graph()
-                }
-                for agent in self.agents
-            }
         dfas = batch2graph(
             list2batch(
                 [state.dfas[agent].to_graph() for agent in self.agents]
