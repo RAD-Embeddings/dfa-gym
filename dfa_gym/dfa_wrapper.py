@@ -23,12 +23,14 @@ class DFAWrapper(MultiAgentEnv):
         self,
         env: MultiAgentEnv,
         gamma: float | None = 0.99,
-        sampler: DFASampler = RADSampler()
+        sampler: DFASampler = RADSampler(),
+        binary_reward: bool = True
     ) -> None:
         super().__init__(num_agents=env.num_agents)
         self.env = env
         self.gamma = gamma
         self.sampler = sampler
+        self.binary_reward = binary_reward
 
         assert self.sampler.n_tokens == self.env.n_tokens
 
@@ -108,13 +110,13 @@ class DFAWrapper(MultiAgentEnv):
         }
 
         dones = {
-            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward(binary=True) != 0.0)
+            agent: jnp.logical_or(env_dones[agent], dfas[agent].reward(binary=self.binary_reward) != 0.0)
             for agent in self.agents
         }
         _dones = jnp.array([dones[agent] for agent in self.agents])
         dones.update({"__all__": jnp.all(_dones)})
 
-        dfa_rewards_min = jnp.min(jnp.array([dfas[agent].reward(binary=True) for agent in self.agents]))
+        dfa_rewards_min = jnp.min(jnp.array([dfas[agent].reward(binary=self.binary_reward) for agent in self.agents]))
         rewards = {
             agent: jax.lax.cond(
                 dones["__all__"],
@@ -127,7 +129,7 @@ class DFAWrapper(MultiAgentEnv):
 
         if self.gamma is not None:
             rewards = {
-                agent: rewards[agent] + self.gamma * dfas[agent].reward(binary=True) - state.dfas[agent].reward(binary=True)
+                agent: rewards[agent] + self.gamma * dfas[agent].reward(binary=self.binary_reward) - state.dfas[agent].reward(binary=self.binary_reward)
                 for agent in self.agents
             }
 
