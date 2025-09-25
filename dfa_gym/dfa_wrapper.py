@@ -65,26 +65,26 @@ class DFAWrapper(MultiAgentEnv):
         self,
         key: chex.PRNGKey
     ) -> Tuple[Dict[str, chex.Array], DFAWrapperState]:
+        keys = jax.random.split(key, 4 + self.num_agents)
 
-        key, subkey = jax.random.split(key)
-        env_obs, env_state = self.env.reset(subkey)
+        env_obs, env_state = self.env.reset(keys[1])
 
-        def sample_dfas(key):
-            keys = jax.random.split(key, self.num_agents + 1)
-            key, subkeys = keys[0], keys[1:]
-            dfas = {agent: self.sampler.sample(subkeys[i]) for i, agent in enumerate(self.agents)}
-            return key, dfas
+        n_trivial = jax.random.choice(keys[2], self.num_agents)
+        mask = jax.random.permutation(keys[3], jnp.arange(self.num_agents) < n_trivial)
 
-        def cond_fun(carry):
-            key, dfas = carry
-            n_states = jnp.array([dfa.n_states for dfa in dfas.values()])
-            return jnp.all(n_states <= 1)
+        def sample_dfa(dfa_key, sample_trivial):
+            return jax.tree_util.tree_map(
+                lambda t, s: jnp.where(sample_trivial, t, s),
+                self.sampler.trivial(True),
+                self.sampler.sample(dfa_key)
+            )
 
-        def body_fun(carry):
-            key, _ = carry
-            return sample_dfas(key)
+        dfas_tree = jax.vmap(sample_dfa)(keys[4:], mask)
 
-        key, dfas = jax.lax.while_loop(cond_fun, body_fun, sample_dfas(key))
+        dfas = {
+            agent: jax.tree_util.tree_map(lambda x: x[i], dfas_tree)
+            for i, agent in enumerate(self.agents)
+        }
 
         state = DFAWrapperState(
             dfas=dfas,
