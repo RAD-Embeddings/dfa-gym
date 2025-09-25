@@ -14,7 +14,7 @@ def parse_map(map_lines):
     return grid
 
 
-def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
+def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
     map_lines = layout.splitlines()
     grid = parse_map(map_lines)
     n_rows, n_cols = len(grid), len(grid[0])
@@ -51,7 +51,7 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
 
             elif content.isupper():  # agents
                 image = plt.imread('robot.png')
-                image_box = OffsetImage(image, zoom=0.023)
+                image_box = OffsetImage(image, zoom=0.05)
                 ab = AnnotationBbox(image_box, (x + 0.5, y + 0.5), frameon=False)
                 ax.add_artist(ab)
 
@@ -66,7 +66,7 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
                 ))
                 ax.text(x + 0.5, y + 0.5, content,
                         ha="center", va="center",
-                        fontsize=11, color="black", weight="bold")
+                        fontsize=24, color="black", weight="bold")
 
             elif content.islower():  # sync button
                 if "a" in content:
@@ -75,6 +75,8 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
                     color = "green"
                 elif "c" in content:
                     color = "blue"
+                elif "d" in content:
+                    color = "pink"
                 else:
                     raise ValueError
                 # color = "crimson"
@@ -82,7 +84,7 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
                     ax.add_patch(patches.Rectangle(
                         (x, y), cell_size, cell_size,
                         facecolor=color, edgecolor="black", lw=1.5,
-                        hatch="|||", hatch_linewidth=2, fill=True  # diagonal stripes
+                        hatch="||", hatch_linewidth=3, fill=True  # diagonal stripes
                     ))
                 else:
                     ax.add_patch(patches.Rectangle(
@@ -96,11 +98,11 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
                     (x, y), cell_size, cell_size,
                     facecolor="firebrick", edgecolor="black", lw=1.5
                 ))
-                for p in parts:
-                    if p.islower():
-                        ax.text(x + 0.5, y + 0.5, p,
-                                ha="center", va="center",
-                                fontsize=9, color="white")
+                # for p in parts:
+                #     if p.islower():
+                #         ax.text(x + 0.5, y + 0.5, p,
+                #                 ha="center", va="center",
+                #                 fontsize=9, color="white")
 
     if save_path:
         plt.savefig(save_path, bbox_inches="tight", dpi=300)
@@ -108,17 +110,39 @@ def visualize_map_minigrid(layout, cell_size=1, figsize=(6, 6), save_path=None):
 
 
 if __name__ == "__main__":
+    # layout = """
+    # [ # ][ # ][ # ][ # ][ # ][   ][   ][   ][ 0 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
+    # [ # ][ 0 ][   ][ 1 ][#,c][   ][ c ][   ][ A ][   ][ a ][   ][#,a][ 0 ][   ][ 2 ][ # ]
+    # [ # ][   ][ 4 ][   ][#,c][   ][ c ][   ][   ][   ][ a ][   ][#,a][   ][ 8 ][   ][ # ]
+    # [ # ][ 3 ][   ][ 2 ][#,c][   ][ c ][   ][ B ][   ][ a ][   ][#,a][ 6 ][   ][ 4 ][ # ]
+    # [ # ][ # ][ # ][ # ][ # ][ 2 ][   ][   ][   ][   ][   ][ 3 ][ # ][ # ][ # ][ # ][ # ]
+    # [ # ][ 5 ][   ][ 6 ][#,d][   ][ d ][   ][ C ][   ][ b ][   ][#,b][ 1 ][   ][ 3 ][ # ]
+    # [ # ][   ][ 9 ][   ][#,d][   ][ d ][   ][   ][   ][ b ][   ][#,b][   ][ 9 ][   ][ # ]
+    # [ # ][ 8 ][   ][ 7 ][#,d][   ][ d ][   ][ D ][   ][ b ][   ][#,b][ 7 ][   ][ 5 ][ # ]
+    # [ # ][ # ][ # ][ # ][ # ][   ][   ][   ][ 1 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
+    # """
     layout = """
-    [ 0 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
-    [   ][   ][ a ][   ][#,a][ 0 ][   ][ 2 ][ # ]
-    [ A ][   ][ a ][   ][#,a][   ][ 8 ][   ][ # ]
-    [   ][   ][ a ][   ][#,a][ 6 ][   ][ 4 ][ # ]
-    [ 1 ][   ][   ][ 3 ][ # ][ # ][ # ][ # ][ # ]
-    [   ][   ][ b ][   ][#,b][ 1 ][   ][ 3 ][ # ]
-    [ B ][   ][ b ][   ][#,b][   ][ 9 ][   ][ # ]
-    [   ][   ][ b ][   ][#,b][ 7 ][   ][ 5 ][ # ]
-    [ 2 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
+    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
+    [ # ][ 0 ][   ][ 2 ][ # ][ 1 ][   ][ 3 ][ # ][ 0 ][   ][ 1 ][ # ][ 5 ][   ][ 6 ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][ a ][ 8 ][ A ][ # ][ B ][ 9 ][ a ][#,a][ a ][ 4 ][ C ][#,a][ D ][ 9 ][ a ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ][   ][   ][   ][ # ]
+    [ # ][ 6 ][   ][ 4 ][ # ][ 7 ][   ][ 5 ][ # ][ 3 ][   ][ 2 ][ # ][ 8 ][   ][ 7 ][ # ]
+    [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
     """
+    # layout = """
+    # [ 0 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
+    # [   ][   ][ a ][   ][#,a][ 0 ][   ][ 2 ][ # ]
+    # [ A ][   ][ a ][   ][#,a][   ][ 8 ][   ][ # ]
+    # [   ][   ][ a ][   ][#,a][ 6 ][   ][ 4 ][ # ]
+    # [ 1 ][   ][   ][ 3 ][ # ][ # ][ # ][ # ][ # ]
+    # [   ][   ][ b ][   ][#,b][ 1 ][   ][ 3 ][ # ]
+    # [ B ][   ][ b ][   ][#,b][   ][ 9 ][   ][ # ]
+    # [   ][   ][ b ][   ][#,b][ 7 ][   ][ 5 ][ # ]
+    # [ 2 ][   ][   ][   ][ # ][ # ][ # ][ # ][ # ]
+    # """
     # layout = """
     # [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
     # [ # ][ 0 ][   ][ 2 ][ # ][ 1 ][   ][ 3 ][ # ]
@@ -131,4 +155,4 @@ if __name__ == "__main__":
     # [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
     # """
 
-    visualize_map_minigrid(layout, save_path="maps/layout1.pdf")
+    visualize_map_minigrid(layout, figsize=(17,9), save_path="maps/4rooms_4agent.pdf")
