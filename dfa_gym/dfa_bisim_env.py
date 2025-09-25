@@ -95,8 +95,8 @@ class DFABisimEnv(MultiAgentEnv):
         dfa_l = state.dfa_l.advance(action[self.agents[0]]).minimize()
         dfa_r = state.dfa_r.advance(action[self.agents[0]]).minimize()
 
-        reward_l = dfa_l.reward()
-        reward_r = dfa_r.reward()
+        reward_l = dfa_l.reward(binary=False)
+        reward_r = dfa_r.reward(binary=False)
         reward = reward_l - reward_r
 
         new_state = DFABisimState(
