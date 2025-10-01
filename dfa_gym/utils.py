@@ -1,7 +1,9 @@
+import re
 import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 import matplotlib.patches as patches
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-import re
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 def parse_map(map_lines):
@@ -14,7 +16,7 @@ def parse_map(map_lines):
     return grid
 
 
-def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
+def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
     map_lines = layout.splitlines()
     grid = parse_map(map_lines)
     n_rows, n_cols = len(grid), len(grid[0])
@@ -35,6 +37,8 @@ def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
                 (x, y), cell_size, cell_size,
                 facecolor="lightgray", edgecolor="white", lw=1
             ))
+    agent_positions = {}
+    wall_positions = {}
     for r in range(n_rows):
         for c in range(n_cols):
             content = grid[r][c]
@@ -44,16 +48,14 @@ def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
                 continue
 
             if content == "#":  # wall
-                ax.add_patch(patches.Rectangle(
-                    (x, y), cell_size, cell_size,
-                    facecolor="dimgray", edgecolor="black", lw=1.5
-                ))
+                wall_positions[(x,y)] = "dimgray"
+                # ax.add_patch(patches.Rectangle(
+                #     (x, y), cell_size, cell_size,
+                #     facecolor="dimgray", edgecolor="black", lw=1.5
+                # ))
 
             elif content.isupper():  # agents
-                image = plt.imread('robot.png')
-                image_box = OffsetImage(image, zoom=0.05)
-                ab = AnnotationBbox(image_box, (x + 0.5, y + 0.5), frameon=False)
-                ax.add_artist(ab)
+                agent_positions[content] = (x + 0.5, y + 0.5)
 
                 # ax.text(x + 0.5, y + 0.5, "8",
                 #         ha="center", va="center",
@@ -81,11 +83,12 @@ def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
                     raise ValueError
                 # color = "crimson"
                 if "#" in content:
-                    ax.add_patch(patches.Rectangle(
-                        (x, y), cell_size, cell_size,
-                        facecolor=color, edgecolor="black", lw=1.5,
-                        hatch="||", hatch_linewidth=3, fill=True  # diagonal stripes
-                    ))
+                    wall_positions[(x,y)] = color
+                    # ax.add_patch(patches.Rectangle(
+                    #     (x, y), cell_size, cell_size,
+                    #     facecolor=color, edgecolor="black", lw=1.5,
+                    #     hatch="||", hatch_linewidth=3, fill=True
+                    # ))
                 else:
                     ax.add_patch(patches.Rectangle(
                         (x, y), cell_size, cell_size,
@@ -104,9 +107,105 @@ def visualize_map_minigrid(layout, figsize, cell_size=1, save_path=None):
                 #                 ha="center", va="center",
                 #                 fontsize=9, color="white")
 
-    if save_path:
-        plt.savefig(save_path, bbox_inches="tight", dpi=300)
-    plt.show()
+    # if trace is not None:
+    #     #TODO: Trace is a list of agent positions, where for n agents with trace length L, trace contains L many agent position entries each is a n by 2 vector giving agent positions.
+    #     # Draw this trace on the map!
+    if trace is not None:
+
+        n_agents = len(agent_positions.keys())
+        L = len(trace)
+
+        # Load robot image once
+        robot_img = mpimg.imread('robot.png')
+        zoom = 0.05  # adjust as needed
+
+        # Optional: add labels to track agents
+        agent_labels = [str(i + 1) for i in range(n_agents)]
+
+        # Store artists for cleanup each frame
+        current_boxes = []
+        current_texts = []
+        current_walls = []   # <-- NEW
+
+        def update(frame):
+            # Remove previous robot images and texts
+            for ab in current_boxes:
+                ab.remove()
+            current_boxes.clear()
+
+            for txt in current_texts:
+                txt.remove()
+            current_texts.clear()
+
+            for wall in current_walls:   # <-- NEW
+                wall.remove()
+            current_walls.clear()
+
+            # Add robot images and labels for this frame
+            for agent_idx in range(n_agents):
+                pos = trace[frame].env_state.agent_positions[agent_idx]
+                x = pos[1] + 0.5
+                y = n_rows - pos[0] - 0.5
+
+                # robot image
+                image_box = OffsetImage(robot_img, zoom=zoom)
+                ab = AnnotationBbox(image_box, (x, y), frameon=False)
+                ax.add_artist(ab)
+                current_boxes.append(ab)
+
+                # label text (gets removed next frame)
+                txt = ax.text(x+0.3, y + 0.3, agent_labels[agent_idx],
+                              ha='center', va='bottom', color='black', weight='bold', fontsize=10)
+                current_texts.append(txt)
+
+            # Draw walls dynamically
+            for i, (x, y) in enumerate(wall_positions):
+                color = wall_positions[(x, y)]
+                if trace[frame].env_state.is_wall_disabled[i] or color == "dimgray":
+                    rect = ax.add_patch(patches.Rectangle(
+                        (x, y), cell_size, cell_size,
+                        facecolor=color, edgecolor="black", lw=1.5
+                    ))
+                else:
+                    rect = ax.add_patch(patches.Rectangle(
+                        (x, y), cell_size, cell_size,
+                        facecolor=color, edgecolor="black", lw=1.5,
+                        hatch="||", hatch_linewidth=3, fill=True
+                    ))
+                current_walls.append(rect)   # <-- keep track
+
+            return current_boxes + current_texts + current_walls
+
+        anim = FuncAnimation(fig, update, frames=L, interval=500, blit=False)
+
+        if save_path:
+            gif_path = save_path.replace(".pdf", ".gif")
+            anim.save(gif_path, writer=PillowWriter(fps=2))
+
+        plt.show()
+
+
+
+    else:
+
+        for agent in agent_positions:
+            x, y = agent_positions[agent]
+            image = plt.imread('robot.png')
+            image_box = OffsetImage(image, zoom=0.05)
+            ab = AnnotationBbox(image_box, (x, y), frameon=False)
+            ax.add_artist(ab)
+
+        for (x, y) in wall_positions:
+            color = wall_positions[(x, y)]
+            ax.add_patch(patches.Rectangle(
+                (x, y), cell_size, cell_size,
+                facecolor=color, edgecolor="black", lw=1.5,
+                hatch="||", hatch_linewidth=3, fill=True
+            ))
+
+        if save_path:
+            plt.savefig(save_path, bbox_inches="tight", dpi=300)
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -155,4 +254,5 @@ if __name__ == "__main__":
     # [ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ][ # ]
     # """
 
-    visualize_map_minigrid(layout, figsize=(17,9), save_path="maps/4buttons_4agents.pdf")
+    # visualize(layout, figsize=(17,9), save_path="maps/4buttons_4agents.pdf")
+    visualize(layout, figsize=(17,9))
