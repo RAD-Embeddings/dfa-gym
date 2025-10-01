@@ -125,7 +125,8 @@ def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
         # Store artists for cleanup each frame
         current_boxes = []
         current_texts = []
-        current_walls = []   # <-- NEW
+        current_walls = []
+        current_timestep = []   # <-- NEW
 
         def update(frame):
             # Remove previous robot images and texts
@@ -137,9 +138,13 @@ def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
                 txt.remove()
             current_texts.clear()
 
-            for wall in current_walls:   # <-- NEW
+            for wall in current_walls:
                 wall.remove()
             current_walls.clear()
+
+            for ts in current_timestep:   # <-- remove timestep text
+                ts.remove()
+            current_timestep.clear()
 
             # Add robot images and labels for this frame
             for agent_idx in range(n_agents):
@@ -153,7 +158,7 @@ def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
                 ax.add_artist(ab)
                 current_boxes.append(ab)
 
-                # label text (gets removed next frame)
+                # label text
                 txt = ax.text(x+0.3, y + 0.3, agent_labels[agent_idx],
                               ha='center', va='bottom', color='black', weight='bold', fontsize=10)
                 current_texts.append(txt)
@@ -172,19 +177,20 @@ def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
                         facecolor=color, edgecolor="black", lw=1.5,
                         hatch="||", hatch_linewidth=3, fill=True
                     ))
-                current_walls.append(rect)   # <-- keep track
+                current_walls.append(rect)
 
-            return current_boxes + current_texts + current_walls
+            # Add timestep text above the grid
+            ts = ax.text(n_cols / 2, n_rows + 0.5, f"Time step: {frame}",
+                         ha='center', va='bottom', color='black', weight='bold', fontsize=14)
+            current_timestep.append(ts)
+
+            return current_boxes + current_texts + current_walls + current_timestep
 
         anim = FuncAnimation(fig, update, frames=L, interval=500, blit=False)
 
         if save_path:
             gif_path = save_path.replace(".pdf", ".gif")
             anim.save(gif_path, writer=PillowWriter(fps=2))
-
-        plt.show()
-
-
 
     else:
 
@@ -205,7 +211,9 @@ def visualize(layout, figsize, cell_size=1, save_path=None, trace=None):
 
         if save_path:
             plt.savefig(save_path, bbox_inches="tight", dpi=300)
-        plt.show()
+        else:
+            plt.show()
+        plt.close()
 
 
 if __name__ == "__main__":
