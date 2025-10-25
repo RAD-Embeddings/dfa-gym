@@ -1,7 +1,6 @@
 from dfa_gym.dfa_env import *
 from dfa_gym.dfa_wrapper import *
 from dfa_gym.dfa_bisim_env import *
-from dfa_gym.dfa_bisim2_env import *
 
 from dfa_gym.word_env import *
 
