@@ -30,8 +30,3 @@ register(
     entry_point='dfa_gym.dfa_bisim2_env:DFABisim2Env'
 )
 
-register(
-    id='WordEnv-v1',
-    entry_point='dfa_gym.word_env:WordEnv',
-    kwargs = {"encoder": Encoder(load_file="DFABisimEnv-v1-encoder")}
-)
